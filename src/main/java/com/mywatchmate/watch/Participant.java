@@ -79,4 +79,11 @@ public class Participant {
     public boolean isGuest() {
         return user == null;
     }
+
+    /** A guest who registered: their history stays, and their guest device token stops working. */
+    public void attachToUser(User user) {
+        this.user = user;
+        this.guestDisplayName = null;
+        this.guestTokenHash = null;
+    }
 }
