@@ -35,7 +35,11 @@ public class OpenApiConfig {
 
                     ### Real-time
                     Live features use STOMP over WebSocket at `/ws`. Send `Authorization: Bearer <accessToken>`
-                    as a header on the STOMP **CONNECT** frame. Event documentation is added as those features land.
+                    as a header on the STOMP **CONNECT** frame, then subscribe to `/topic/spaces/{spaceId}/events`
+                    (room members only). Every event is `{"type","spaceId","at","data"}`. Types: MEMBER_JOINED,
+                    MEMBER_LEFT, MEMBER_REMOVED, ROLE_CHANGED, OWNERSHIP_TRANSFERRED, SPACE_UPDATED, SPACE_ARCHIVED,
+                    SPACE_RESTORED, CONTENT_ADDED, CONTENT_REMOVED, NOW_PLAYING_CHANGED.
+                    Full payloads: `docs/realtime-events.md` in the backend repository.
                     """))
             .components(new Components().addSecuritySchemes(BEARER, new SecurityScheme()
                 .type(SecurityScheme.Type.HTTP)

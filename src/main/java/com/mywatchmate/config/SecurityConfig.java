@@ -46,6 +46,10 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, PUBLIC_POSTS).permitAll()
                 .requestMatchers(PUBLIC_PATHS).permitAll()
+                // Invite preview is public so the join screen works before sign-in
+                .requestMatchers(HttpMethod.GET, "/api/v1/invites/*").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/invites/*/join").hasRole("USER")
+                .requestMatchers("/api/v1/spaces").hasRole("USER")
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/upgrade").hasRole("GUEST")
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").hasRole("USER")
                 .requestMatchers("/api/v1/me/**", "/api/v1/me").hasRole("USER")

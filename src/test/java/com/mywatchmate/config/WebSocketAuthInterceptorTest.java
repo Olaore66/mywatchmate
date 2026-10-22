@@ -5,11 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.mywatchmate.auth.AuthPrincipal;
 import com.mywatchmate.auth.JwtPrincipalConverter;
 import com.mywatchmate.auth.PrincipalAuthentication;
+import com.mywatchmate.watch.SpaceAccess;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,12 +31,61 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 class WebSocketAuthInterceptorTest {
 
     @Mock JwtDecoder decoder;
+    @Mock SpaceAccess spaceAccess;
 
     private WebSocketAuthInterceptor interceptor;
 
     @BeforeEach
     void setUp() {
-        interceptor = new WebSocketAuthInterceptor(decoder, new JwtPrincipalConverter());
+        interceptor = new WebSocketAuthInterceptor(decoder, new JwtPrincipalConverter(), spaceAccess);
+    }
+
+    @Test
+    void membersCanSubscribeToTheirRoom() {
+        UUID spaceId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        when(spaceAccess.isActiveMember(AuthPrincipal.user(userId), spaceId)).thenReturn(true);
+        Message<byte[]> subscribe = signedIn(StompCommand.SUBSCRIBE, userId, "/topic/spaces/" + spaceId + "/events");
+
+        assertThat(interceptor.preSend(subscribe, null)).isSameAs(subscribe);
+    }
+
+    @Test
+    void nonMembersCannotSubscribeToARoom() {
+        UUID spaceId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        when(spaceAccess.isActiveMember(AuthPrincipal.user(userId), spaceId)).thenReturn(false);
+
+        assertThatThrownBy(() -> interceptor.preSend(
+            signedIn(StompCommand.SUBSCRIBE, userId, "/topic/spaces/" + spaceId + "/events"), null))
+            .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void ownUserQueuesNeedNoRoomCheck() {
+        Message<byte[]> subscribe = signedIn(StompCommand.SUBSCRIBE, UUID.randomUUID(), "/user/queue/errors");
+
+        assertThat(interceptor.preSend(subscribe, null)).isSameAs(subscribe);
+        verifyNoInteractions(spaceAccess);
+    }
+
+    @Test
+    void anyOtherDestinationIsRefused() {
+        UUID userId = UUID.randomUUID();
+        for (String destination : new String[] {"/topic/everything", "/topic/spaces/not-a-uuid/events", "/app/x", ""}) {
+            assertThatThrownBy(() -> interceptor.preSend(signedIn(StompCommand.SUBSCRIBE, userId, destination), null))
+                .as(destination)
+                .isInstanceOf(AccessDeniedException.class);
+        }
+        verifyNoInteractions(spaceAccess);
+    }
+
+    private static Message<byte[]> signedIn(StompCommand command, UUID userId, String destination) {
+        Message<byte[]> message = frame(command, null);
+        StompHeaderAccessor accessor = StompHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        accessor.setUser(new JwtPrincipalConverter().convert(userJwt(userId)));
+        accessor.setDestination(destination);
+        return message;
     }
 
     @Test

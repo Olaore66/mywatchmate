@@ -1,6 +1,12 @@
 package com.mywatchmate.config;
 
 import com.mywatchmate.auth.JwtPrincipalConverter;
+import com.mywatchmate.auth.PrincipalAuthentication;
+import com.mywatchmate.watch.SpaceAccess;
+import java.security.Principal;
+import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -16,16 +22,20 @@ import org.springframework.stereotype.Component;
 /**
  * Authenticates STOMP connections with the same access token as REST:
  * the client sends {@code Authorization: Bearer <token>} on the CONNECT frame.
- * Frames from an unauthenticated session are rejected.
+ * Frames from an unauthenticated session are rejected, and a room's topics
+ * ({@code /topic/spaces/{id}/...}) can only be subscribed to by its current members.
  */
 @Component
 @RequiredArgsConstructor
 public class WebSocketAuthInterceptor implements ChannelInterceptor {
 
     private static final String BEARER = "Bearer ";
+    private static final Pattern SPACE_TOPIC =
+        Pattern.compile("^/topic/spaces/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(/.*)?$");
 
     private final JwtDecoder jwtDecoder;
     private final JwtPrincipalConverter converter;
+    private final SpaceAccess spaceAccess;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -44,9 +54,27 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
             } catch (JwtException e) {
                 throw new AccessDeniedException("Invalid or expired token");
             }
-        } else if ((command == StompCommand.SEND || command == StompCommand.SUBSCRIBE) && accessor.getUser() == null) {
-            throw new AccessDeniedException("Not authenticated");
+        } else if (command == StompCommand.SEND || command == StompCommand.SUBSCRIBE) {
+            Principal user = accessor.getUser();
+            if (!(user instanceof PrincipalAuthentication auth)) {
+                throw new AccessDeniedException("Not authenticated");
+            }
+            if (command == StompCommand.SUBSCRIBE && !maySubscribe(auth, accessor.getDestination())) {
+                throw new AccessDeniedException("Not allowed to subscribe to " + accessor.getDestination());
+            }
         }
         return message;
+    }
+
+    /** Own queues: always. A room's topics: current members only. Anything else: no. */
+    private boolean maySubscribe(PrincipalAuthentication auth, String destination) {
+        if (destination == null) {
+            return false;
+        }
+        if (destination.startsWith("/user/")) {
+            return true;
+        }
+        Matcher room = SPACE_TOPIC.matcher(destination);
+        return room.matches() && spaceAccess.isActiveMember(auth.getPrincipal(), UUID.fromString(room.group(1)));
     }
 }

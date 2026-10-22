@@ -53,8 +53,13 @@ public class ContentItem {
     @Column(length = 300)
     private String title;
 
-    // Null for live streams
+    // Null for live streams, and for YouTube until a player reports it
     private Integer durationSeconds;
+
+    private String thumbnailUrl;
+
+    @Column(name = "is_live", nullable = false)
+    private boolean live;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

@@ -51,6 +51,11 @@ mywatchmate:
     issuer: mywatchmate
     access-ttl: 15m
     refresh-ttl: 30d
+  spaces:
+    # People (users + guests) allowed in one room at a time
+    max-members: ${MAX_MEMBERS_PER_SPACE:50}
+    # Where invite links point: <frontend-url>/join/<token>
+    frontend-url: ${FRONTEND_URL:http://localhost:3000}
 
 springdoc:
   api-docs:

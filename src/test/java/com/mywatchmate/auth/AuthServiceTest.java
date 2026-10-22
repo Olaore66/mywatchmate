@@ -23,7 +23,7 @@ import com.mywatchmate.identity.UserRepository;
 import com.mywatchmate.watch.Participant;
 import com.mywatchmate.watch.ParticipantRepository;
 import com.mywatchmate.watch.Space;
-import com.mywatchmate.watch.SpaceRepository;
+import com.mywatchmate.watch.MembershipService;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -51,7 +51,7 @@ class AuthServiceTest {
     @Mock UserRepository users;
     @Mock RefreshTokenRepository refreshTokens;
     @Mock ParticipantRepository participants;
-    @Mock SpaceRepository spaces;
+    @Mock MembershipService membership;
     @Mock TokenService tokens;
     @Mock PasswordEncoder passwordEncoder;
 
@@ -71,7 +71,7 @@ class AuthServiceTest {
         lenient().when(tokens.accessTokenSeconds()).thenReturn(900L);
         lenient().when(users.saveAndFlush(any(User.class))).thenAnswer(i -> withId(i.<User>getArgument(0)));
 
-        service = new AuthService(users, refreshTokens, participants, spaces, tokens, passwordEncoder, props);
+        service = new AuthService(users, refreshTokens, participants, membership, tokens, passwordEncoder, props);
         service.init();
     }
 
@@ -322,57 +322,27 @@ class AuthServiceTest {
         }
 
         @Test
-        void joiningCreatesAGuestWithAHashedDeviceToken() {
-            UUID participantId = UUID.randomUUID();
-            when(spaces.findByInviteToken("inv-1")).thenReturn(Optional.of(space));
-            when(participants.save(any(Participant.class))).thenAnswer(i -> {
-                Participant p = i.getArgument(0);
-                p.setId(participantId);
-                return p;
-            });
+        void joiningAdmitsAGuestWithAHashedDeviceTokenAndReturnsTokens() {
+            Participant admitted = guest();
+            when(membership.admitGuest("inv-1", "Bisi", "hash:opaque-1")).thenReturn(admitted);
 
             GuestTokenResponse response = service.joinAsGuest(new GuestJoinRequest("inv-1", "  Bisi "));
 
-            ArgumentCaptor<Participant> saved = ArgumentCaptor.forClass(Participant.class);
-            verify(participants).save(saved.capture());
-            assertThat(saved.getValue().isGuest()).isTrue();
-            assertThat(saved.getValue().getSpace()).isSameAs(space);
-            assertThat(saved.getValue().getGuestDisplayName()).isEqualTo("Bisi");
-            assertThat(saved.getValue().getGuestTokenHash()).isEqualTo("hash:opaque-1");
-
             assertThat(response.deviceToken()).isEqualTo("opaque-1");
-            assertThat(response.accessToken()).isEqualTo("guest-access-for-" + participantId);
-            assertThat(response.participantId()).isEqualTo(participantId);
+            assertThat(response.accessToken()).isEqualTo("guest-access-for-" + admitted.getId());
+            assertThat(response.participantId()).isEqualTo(admitted.getId());
             assertThat(response.spaceId()).isEqualTo(space.getId());
             assertThat(response.displayName()).isEqualTo("Bisi");
-            verify(tokens).guestAccessToken(participantId, space.getId());
+            verify(tokens).guestAccessToken(admitted.getId(), space.getId());
         }
 
         @Test
-        void unknownInviteIsNotFound() {
-            when(spaces.findByInviteToken("nope")).thenReturn(Optional.empty());
-
-            assertApiError(() -> service.joinAsGuest(new GuestJoinRequest("nope", "Bisi")),
-                HttpStatus.NOT_FOUND, "INVITE_NOT_FOUND");
-        }
-
-        @Test
-        void archivedSpaceIsNotFound() {
-            space.setArchivedAt(Instant.now());
-            when(spaces.findByInviteToken("inv-1")).thenReturn(Optional.of(space));
-
-            assertApiError(() -> service.joinAsGuest(new GuestJoinRequest("inv-1", "Bisi")),
-                HttpStatus.NOT_FOUND, "INVITE_NOT_FOUND");
-        }
-
-        @Test
-        void membersOnlySpaceRefusesGuests() {
-            space.setAllowGuests(false);
-            when(spaces.findByInviteToken("inv-1")).thenReturn(Optional.of(space));
+        void roomRefusalsFromMembershipPassThrough() {
+            when(membership.admitGuest(eq("inv-1"), eq("Bisi"), anyString()))
+                .thenThrow(ApiException.forbidden("GUESTS_NOT_ALLOWED", "no guests"));
 
             assertApiError(() -> service.joinAsGuest(new GuestJoinRequest("inv-1", "Bisi")),
                 HttpStatus.FORBIDDEN, "GUESTS_NOT_ALLOWED");
-            verify(participants, never()).save(any());
         }
 
         @Test

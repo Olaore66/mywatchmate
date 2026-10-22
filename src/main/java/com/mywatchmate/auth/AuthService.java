@@ -12,8 +12,7 @@ import com.mywatchmate.identity.UserRepository;
 import com.mywatchmate.identity.dto.MeResponse;
 import com.mywatchmate.watch.Participant;
 import com.mywatchmate.watch.ParticipantRepository;
-import com.mywatchmate.watch.Space;
-import com.mywatchmate.watch.SpaceRepository;
+import com.mywatchmate.watch.MembershipService;
 import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -34,7 +33,7 @@ public class AuthService {
     private final UserRepository users;
     private final RefreshTokenRepository refreshTokens;
     private final ParticipantRepository participants;
-    private final SpaceRepository spaces;
+    private final MembershipService membership;
     private final TokenService tokens;
     private final PasswordEncoder passwordEncoder;
     private final JwtProperties props;
@@ -92,17 +91,11 @@ public class AuthService {
             .ifPresent(t -> refreshTokens.revokeFamily(t.getFamilyId(), Instant.now()));
     }
 
+    /** Room checks (link valid, guests allowed, room not full) live in MembershipService, shared with users. */
     @Transactional
     public GuestTokenResponse joinAsGuest(GuestJoinRequest request) {
-        Space space = spaces.findByInviteToken(request.inviteToken())
-            .filter(s -> s.getArchivedAt() == null)
-            .orElseThrow(() -> ApiException.notFound("INVITE_NOT_FOUND", "This invite link is invalid or no longer active."));
-        if (!space.isAllowGuests()) {
-            throw ApiException.forbidden("GUESTS_NOT_ALLOWED", "This space requires an account to join.");
-        }
         String deviceToken = tokens.newOpaqueToken();
-        Participant guest = participants.save(
-            Participant.guest(space, request.displayName().trim(), tokens.hash(deviceToken)));
+        Participant guest = membership.admitGuest(request.inviteToken(), request.displayName().trim(), tokens.hash(deviceToken));
         return guestTokens(guest, deviceToken);
     }
 

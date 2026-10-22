@@ -60,6 +60,13 @@ public class Participant {
 
     private Instant leftAt;
 
+    // Set when an owner/admin removed this person; they can't rejoin from the link
+    private Instant removedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "removed_by")
+    private Participant removedBy;
+
     public static Participant member(Space space, User user, Role role) {
         Participant p = new Participant();
         p.space = space;
@@ -78,6 +85,42 @@ public class Participant {
 
     public boolean isGuest() {
         return user == null;
+    }
+
+    /** Currently in the room (has not left or been removed). */
+    public boolean isActive() {
+        return leftAt == null;
+    }
+
+    public boolean wasRemoved() {
+        return removedAt != null;
+    }
+
+    public String displayName() {
+        return user != null ? user.getDisplayName() : guestDisplayName;
+    }
+
+    public void leave(Instant now) {
+        if (leftAt == null) {
+            leftAt = now;
+        }
+    }
+
+    public void remove(Instant now, Participant by) {
+        leave(now);
+        removedAt = now;
+        removedBy = by;
+    }
+
+    /** Back in after leaving. Roles aren't remembered: a returning admin is a member again. */
+    public void rejoin(Instant now) {
+        leftAt = null;
+        joinedAt = now;
+        role = Role.MEMBER;
+    }
+
+    public void changeRole(Role newRole) {
+        this.role = newRole;
     }
 
     /** A guest who registered: their history stays, and their guest device token stops working. */

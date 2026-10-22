@@ -45,11 +45,14 @@ never by editing one that has already run.
 
 | Kind | Naming | Needs a database? | Run |
 |---|---|---|---|
-| Unit: one class at a time, dependencies mocked with Mockito | `*Test` | No | `.\mvnw.cmd test "-Dtest=*Test"` |
+| Unit: one class at a time with Mockito; controllers via `@WebMvcTest` (real security rules, mocked services) | `*Test` | No | `.\mvnw.cmd test "-Dtest=*Test"` |
 | Integration: the whole app through HTTP/JPA | `*Tests` | Yes (uses your `.env` settings; data is rolled back) | `.\mvnw.cmd test "-Dtest=*Tests"` |
 | Everything | | Yes | `.\mvnw.cmd test` |
 
 Unit tests are the fast feedback loop while coding; run everything before pushing.
+Every test run writes a coverage report to `target/site/jacoco/index.html` (open it in a browser).
+`RealtimeEventsTests` starts a real server and isn't rolled back (events only go out after a commit),
+so it leaves a few `e2e-…@example.com` test users and rooms in the database.
 
 On Windows use `mvnw.cmd`; the bash `./mvnw` script fails to install Maven from Git Bash.
 
@@ -72,8 +75,21 @@ Re-using an old refresh token signs that login out everywhere (`REFRESH_TOKEN_RE
 the token was probably copied. A guest becomes a user with `POST /auth/upgrade` (guest token),
 keeping their history. WebSocket clients send `Authorization: Bearer <accessToken>` on the STOMP CONNECT frame.
 
+### Rooms in one minute
+
+1. `POST /spaces` (optionally with `videoUrl`) → the creator is OWNER; the video plays at once.
+2. `GET /spaces/{id}/invite` → share `inviteUrl` (`<FRONTEND_URL>/join/<token>`).
+3. Join screen: `GET /invites/{token}` (no sign-in) → then `POST /invites/{token}/join` (user)
+   or `POST /auth/guest` (guest).
+4. In the room: `GET /spaces/{id}` → start the `nowPlaying` player; subscribe to
+   `/topic/spaces/{id}/events` for live updates.
+5. Paste a link: `POST /content/preview` for a preview card → `POST /spaces/{id}/content` to play it for everyone.
+
+Permissions are in the **Spaces** section of Swagger; live events are in
+[docs/realtime-events.md](docs/realtime-events.md), including the browser **autoplay** rule.
+
 ## Not built yet
 
-- Spaces, content, scheduling and live-sync endpoints (Phases 2–4)
+- Schedules, sessions and reminders (Phase 3); play/pause/seek sync (Phase 4)
 - Redis fan-out for multiple instances (single-instance in-memory broker for now)
 - AI cue worker and Payaza SDK integration

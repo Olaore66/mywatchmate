@@ -54,6 +54,15 @@ public class Space {
     @Column(nullable = false)
     private boolean allowGuests = true;
 
+    // When false, only the owner and admins can add videos
+    @Column(nullable = false)
+    private boolean membersCanAddContent;
+
+    // What everyone in the room is watching
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "current_content_id")
+    private ContentItem currentContent;
+
     private Instant archivedAt;
 
     @CreationTimestamp
@@ -69,5 +78,32 @@ public class Space {
         this.title = title;
         this.inviteToken = inviteToken;
         this.audienceType = audienceType;
+    }
+
+    public boolean isArchived() {
+        return archivedAt != null;
+    }
+
+    public void archive(Instant now) {
+        if (archivedAt == null) {
+            archivedAt = now;
+        }
+    }
+
+    public void restore() {
+        archivedAt = null;
+    }
+
+    /** The old link stops working immediately. */
+    public void rotateInvite(String newInviteToken) {
+        this.inviteToken = newInviteToken;
+    }
+
+    public void playNow(ContentItem content) {
+        this.currentContent = content;
+    }
+
+    public void stopPlaying() {
+        this.currentContent = null;
     }
 }

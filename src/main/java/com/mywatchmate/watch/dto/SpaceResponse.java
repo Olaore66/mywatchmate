@@ -1,0 +1,26 @@
+package com.mywatchmate.watch.dto;
+
+import com.mywatchmate.watch.Space;
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.time.Instant;
+import java.util.UUID;
+
+@Schema(description = "A room as seen by the caller")
+public record SpaceResponse(
+    @Schema(example = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e") UUID id,
+    @Schema(example = "6am Prayer Room") String title,
+    @Schema(nullable = true) String description,
+    Space.AudienceType audienceType,
+    boolean allowGuests,
+    boolean membersCanAddContent,
+    @Schema(description = "The room owner (user id)") PersonRef owner,
+    @Schema(description = "The caller's role here", allowableValues = {"OWNER", "ADMIN", "MEMBER", "GUEST"}) String myRole,
+    @Schema(description = "The caller's participant id in this room") UUID myParticipantId,
+    @Schema(description = "Whether the caller may add videos / change what's playing") boolean canAddContent,
+    @Schema(example = "4") long memberCount,
+    @Schema(example = "50") int maxMembers,
+    @Schema(description = "What everyone is watching; start this player on load", nullable = true) ContentResponse nowPlaying,
+    @Schema(description = "Set when archived (owners only can still see it)", nullable = true) Instant archivedAt,
+    Instant createdAt
+) {
+}

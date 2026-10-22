@@ -38,4 +38,9 @@ public class ApiException extends RuntimeException {
     public static ApiException conflict(String code, String message) {
         return new ApiException(HttpStatus.CONFLICT, code, message);
     }
+
+    /** The request was understood but can't be acted on, e.g. a link we can't play. */
+    public static ApiException unprocessable(String code, String message) {
+        return new ApiException(HttpStatus.UNPROCESSABLE_CONTENT, code, message);
+    }
 }
