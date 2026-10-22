@@ -1,0 +1,57 @@
+spring:
+  application:
+    name: mywatchmate-backend
+
+  # Local secrets go in a .env file at the project root (gitignored, see .env.example).
+  # Real environment variables still take precedence.
+  config:
+    import: optional:file:.env[.properties]
+
+  # Never put real credentials in this file.
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/mywatchmate}
+    username: ${DB_USERNAME:mywatchmate}
+    password: ${DB_PASSWORD:}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema; Hibernate only checks the entities match it.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        hbm2ddl:
+          # Lets schema validation see the partitioned chat_messages table.
+          extra_physical_table_types: PARTITIONED TABLE
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # Redis is for pub/sub and presence, not entity storage
+      repositories:
+        enabled: false
+
+server:
+  # 8080 is taken by a local Apache (httpd) on the dev machine
+  port: ${SERVER_PORT:8081}
+
+mywatchmate:
+  websocket:
+    allowed-origins: ${WS_ALLOWED_ORIGINS:http://localhost:3000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  health:
+    redis:
+      # Redis isn't used until we run more than one instance; enable then.
+      enabled: ${REDIS_HEALTH_ENABLED:false}
