@@ -58,6 +58,23 @@ so it leaves a few `e2e-…@example.com` test users and rooms in the database.
 
 On Windows use `mvnw.cmd`; the bash `./mvnw` script fails to install Maven from Git Bash.
 
+## Staging on AWS
+
+One EC2 server (Docker: the app + Caddy for HTTPS) and a private RDS PostgreSQL database in
+`eu-west-2`, about $35–40/month. Secrets (database password, JWT secret) are generated straight into
+AWS Parameter Store; nobody types or sees them. Settings live in `deploy/staging.conf`.
+
+Needs: AWS CLI signed in (`aws configure`), Docker Desktop running, Git Bash.
+
+| Task | Command (Git Bash, from the project root) |
+|---|---|
+| Create staging (first time, ~15 min; safe to re-run) | `deploy/setup-staging.sh` |
+| Ship the current commit (~3 min) | `deploy/release.sh` |
+| Delete everything (keeps a final DB snapshot) | `deploy/teardown-staging.sh` |
+
+Run the tests before releasing. The server is reached through AWS Session Manager (no SSH keys);
+logs: `aws ssm start-session --target <instance-id>` then `sudo docker logs -f app`.
+
 ## API docs (for the frontend)
 
 - **Swagger UI:** http://localhost:8081/swagger-ui.html — try any endpoint; use **Authorize** with an access token

@@ -1,0 +1,3 @@
+# Only the built jar goes into the image; keep secrets and everything else out of the build context
+*
+!target/mywatchmate-backend-*.jar

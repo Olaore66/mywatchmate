@@ -1,0 +1,6 @@
+# Caddy terminates HTTPS (free certificate, renewed automatically) and forwards to the app.
+# {$SITE_ADDRESS} is e.g. 18-170-1-2.sslip.io; WebSocket upgrades on /ws pass through as-is.
+{$SITE_ADDRESS} {
+	encode gzip
+	reverse_proxy app:8081
+}
