@@ -36,10 +36,21 @@ fi
 echo "== building image $ECR_REPO:$TAG"
 docker build -q -t "$IMAGE:$TAG" -t "$IMAGE:latest" "$ROOT" >/dev/null
 
+# Network steps are retried: a flaky connection shouldn't fail the whole release
+retry() {
+    for attempt in 1 2 3 4 5; do
+        "$@" && return 0
+        echo "   attempt $attempt failed, retrying in 15s"
+        sleep 15
+    done
+    return 1
+}
+
 echo "== pushing to $REGISTRY"
-aws ecr get-login-password | docker login --username AWS --password-stdin "$REGISTRY" >/dev/null
-docker push -q "$IMAGE:$TAG"
-docker push -q "$IMAGE:latest"
+ecr_login() { aws ecr get-login-password | docker login --username AWS --password-stdin "$REGISTRY" >/dev/null; }
+retry ecr_login
+retry docker push -q "$IMAGE:$TAG"
+retry docker push -q "$IMAGE:latest"
 
 echo "== starting $TAG on $INSTANCE"
 DEPLOY_B64=$(base64 -w0 "$DEPLOY_DIR/server/deploy.sh")
