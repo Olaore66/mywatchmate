@@ -6,7 +6,9 @@ set -euo pipefail
 export MSYS_NO_PATHCONV=1
 export AWS_PAGER=""
 command -v aws >/dev/null || export PATH="$PATH:/c/Program Files/Amazon/AWSCLIV2"
-DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Windows form of the path (C:/Users/...): git and docker are Windows programs and, with
+# MSYS_NO_PATHCONV set, Git Bash no longer translates /c/Users/... for them
+DEPLOY_DIR="$(cd "$(dirname "$0")" && { pwd -W 2>/dev/null || pwd; })"
 ROOT="$(dirname "$DEPLOY_DIR")"
 source "$DEPLOY_DIR/staging.conf"
 export AWS_DEFAULT_REGION="$REGION"
