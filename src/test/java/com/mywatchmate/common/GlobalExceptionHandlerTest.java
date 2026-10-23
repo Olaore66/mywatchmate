@@ -6,9 +6,14 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -69,6 +74,30 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(response.getBody().getDetail()).doesNotContain("hunter2", "db-prod");
         assertThat(response.getBody().getProperties()).containsEntry("code", "INTERNAL_ERROR");
+    }
+
+    @Test
+    void springsOwnErrorsGetACodeToo() throws Exception {
+        ServletWebRequest request = new ServletWebRequest(new MockHttpServletRequest());
+
+        ResponseEntity<Object> unreadable = handler.handleException(new HttpMessageNotReadableException("bad json",
+            new MockHttpInputMessage(new byte[0])), request);
+        ResponseEntity<Object> wrongMethod = handler.handleException(new HttpRequestMethodNotSupportedException("DELETE"), request);
+        ResponseEntity<Object> wrongType = handler.handleException(
+            new HttpMediaTypeNotSupportedException(MediaType.TEXT_PLAIN, java.util.List.of(MediaType.APPLICATION_JSON)), request);
+
+        assertThat(unreadable.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(((ProblemDetail) unreadable.getBody()).getProperties()).containsEntry("code", "MALFORMED_REQUEST");
+        assertThat(((ProblemDetail) wrongMethod.getBody()).getProperties()).containsEntry("code", "METHOD_NOT_ALLOWED");
+        assertThat(((ProblemDetail) wrongType.getBody()).getProperties()).containsEntry("code", "UNSUPPORTED_MEDIA_TYPE");
+    }
+
+    @Test
+    void everyStatusMapsToACode() {
+        assertThat(GlobalExceptionHandler.codeFor(HttpStatus.NOT_FOUND)).isEqualTo("NOT_FOUND");
+        assertThat(GlobalExceptionHandler.codeFor(HttpStatus.NOT_ACCEPTABLE)).isEqualTo("NOT_ACCEPTABLE");
+        assertThat(GlobalExceptionHandler.codeFor(HttpStatus.PAYLOAD_TOO_LARGE)).isEqualTo("PAYLOAD_TOO_LARGE");
+        assertThat(GlobalExceptionHandler.codeFor(HttpStatus.SERVICE_UNAVAILABLE)).isEqualTo("HTTP_503");
     }
 
     @SuppressWarnings("unused")

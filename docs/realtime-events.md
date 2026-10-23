@@ -60,6 +60,11 @@ updated the screen from the REST response.
 | `CONTENT_ADDED` | A video was added to the room's list | Content |
 | `CONTENT_REMOVED` | A video was removed | `{ "contentId": "…" }` |
 | `NOW_PLAYING_CHANGED` | The room switched video, or stopped | Content, or `null` when stopped |
+| `SCHEDULE_UPDATED` | A schedule was created, changed or stopped (`active: false`) | Schedule; refetch `GET /spaces/{id}/sessions` |
+| `SESSION_SCHEDULED` | A one-off session was added | Session |
+| `SESSION_STARTED` | A session went live (on its own at its time, or by a host / "watch now") | Session (`status: LIVE`) |
+| `SESSION_ENDED` | A live session finished (video over, 3-hour limit, or a host ended it) | Session |
+| `SESSION_CANCELLED` | A host cancelled a scheduled session | Session |
 
 ### Shapes
 
@@ -81,6 +86,24 @@ updated the screen from the REST response.
   "thumbnailUrl": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
   "durationSeconds": null, "live": false,
   "addedBy": { "id": "7a9b…", "displayName": "Ada" }, "createdAt": "2026-10-22T06:00:03Z" }
+```
+
+**Session** (same as `SessionResponse` in Swagger; in events, times are in UTC)
+```json
+{ "id": "9e8d…", "spaceId": "1b2c…", "spaceTitle": "6am Prayer Room", "scheduleId": "4f5a…",
+  "title": "Morning Devotion", "status": "LIVE",
+  "scheduledAt": "2026-11-02T05:00:00Z", "scheduledAtLocal": "2026-11-02T05:00:00Z", "localTimezone": "UTC",
+  "startedAt": "2026-11-02T05:00:04Z", "endedAt": null, "content": { …Content… } }
+```
+Show times in the viewer's own timezone by converting `scheduledAt` on the device (or use
+`scheduledAtLocal` from the REST endpoints, which is already in the signed-in user's timezone).
+
+**Schedule** (same as `ScheduleResponse` in Swagger)
+```json
+{ "id": "4f5a…", "spaceId": "1b2c…", "title": "Morning Devotion",
+  "days": ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY"], "time": "06:00", "timezone": "Africa/Lagos",
+  "startsOn": "2026-11-02", "endsOn": null, "active": true, "content": null,
+  "nextSessionAt": "2026-11-02T05:00:00Z" }
 ```
 
 ## Playing videos

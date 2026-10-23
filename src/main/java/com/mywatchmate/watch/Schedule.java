@@ -39,6 +39,10 @@ public class Schedule {
     @JoinColumn(name = "content_item_id")
     private ContentItem contentItem;
 
+    // e.g. "Morning Devotion"; copied onto each session
+    @Column(length = 150)
+    private String title;
+
     // RFC 5545 recurrence rule
     @Column(nullable = false, length = 500)
     private String rrule;

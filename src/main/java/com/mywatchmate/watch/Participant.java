@@ -67,6 +67,9 @@ public class Participant {
     @JoinColumn(name = "removed_by")
     private Participant removedBy;
 
+    // Reminder this many minutes before each session in this room; null = no reminders
+    private Integer reminderMinutesBefore = 10;
+
     public static Participant member(Space space, User user, Role role) {
         Participant p = new Participant();
         p.space = space;

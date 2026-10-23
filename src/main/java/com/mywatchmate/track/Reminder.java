@@ -58,6 +58,10 @@ public class Reminder {
 
     private Instant sentAt;
 
+    // Why sending failed, for support
+    @Column(length = 300)
+    private String lastError;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -67,5 +71,19 @@ public class Reminder {
         this.session = session;
         this.channel = channel;
         this.sendAt = sendAt;
+    }
+
+    public void markSent(Instant now) {
+        status = Status.SENT;
+        sentAt = now;
+    }
+
+    public void markFailed(String error) {
+        status = Status.FAILED;
+        lastError = error == null ? null : error.substring(0, Math.min(error.length(), 300));
+    }
+
+    public void cancel() {
+        status = Status.CANCELLED;
     }
 }

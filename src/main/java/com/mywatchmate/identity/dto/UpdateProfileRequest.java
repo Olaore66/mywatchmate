@@ -12,6 +12,9 @@ public record UpdateProfileRequest(
 
     @Schema(description = "IANA timezone", example = "Africa/Lagos", nullable = true)
     @Size(max = 64)
-    String timezone
+    String timezone,
+
+    @Schema(description = "Switch all reminder emails on or off", example = "false", nullable = true)
+    Boolean emailReminders
 ) {
 }

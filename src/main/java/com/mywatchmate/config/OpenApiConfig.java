@@ -38,7 +38,8 @@ public class OpenApiConfig {
                     as a header on the STOMP **CONNECT** frame, then subscribe to `/topic/spaces/{spaceId}/events`
                     (room members only). Every event is `{"type","spaceId","at","data"}`. Types: MEMBER_JOINED,
                     MEMBER_LEFT, MEMBER_REMOVED, ROLE_CHANGED, OWNERSHIP_TRANSFERRED, SPACE_UPDATED, SPACE_ARCHIVED,
-                    SPACE_RESTORED, CONTENT_ADDED, CONTENT_REMOVED, NOW_PLAYING_CHANGED.
+                    SPACE_RESTORED, CONTENT_ADDED, CONTENT_REMOVED, NOW_PLAYING_CHANGED, SCHEDULE_UPDATED,
+                    SESSION_SCHEDULED, SESSION_STARTED, SESSION_ENDED, SESSION_CANCELLED.
                     Full payloads: `docs/realtime-events.md` in the backend repository.
                     """))
             .components(new Components().addSecuritySchemes(BEARER, new SecurityScheme()

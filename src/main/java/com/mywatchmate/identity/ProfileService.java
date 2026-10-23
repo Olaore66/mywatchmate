@@ -38,6 +38,9 @@ public class ProfileService {
         if (request.timezone() != null) {
             user.setTimezone(Timezones.normalize(request.timezone()));
         }
+        if (request.emailReminders() != null) {
+            user.setEmailReminders(request.emailReminders());
+        }
         return MeResponse.from(users.saveAndFlush(user));
     }
 

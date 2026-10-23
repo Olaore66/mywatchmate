@@ -50,6 +50,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/invites/*").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/invites/*/join").hasRole("USER")
                 .requestMatchers("/api/v1/spaces").hasRole("USER")
+                .requestMatchers("/api/v1/spaces/*/reminders").hasRole("USER")
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/upgrade").hasRole("GUEST")
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").hasRole("USER")
                 .requestMatchers("/api/v1/me/**", "/api/v1/me").hasRole("USER")

@@ -34,6 +34,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         registry.enableSimpleBroker("/topic", "/queue");
+        // Deliver each client's messages in the order they were sent (CONTENT_ADDED before
+        // NOW_PLAYING_CHANGED, MEMBER_JOINED before MEMBER_LEFT); Spring's default thread pool may reorder them
+        registry.setPreservePublishOrder(true);
         registry.setApplicationDestinationPrefixes("/app");
         registry.setUserDestinationPrefix("/user");
     }

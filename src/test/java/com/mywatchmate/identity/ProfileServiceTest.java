@@ -76,7 +76,7 @@ class ProfileServiceTest {
         when(users.findById(ada.getId())).thenReturn(Optional.of(ada));
         when(users.saveAndFlush(ada)).thenReturn(ada);
 
-        MeResponse me = service.update(ada.getId(), new UpdateProfileRequest("  Ada O. ", null));
+        MeResponse me = service.update(ada.getId(), new UpdateProfileRequest("  Ada O. ", null, null));
 
         assertThat(me.displayName()).isEqualTo("Ada O.");
         assertThat(me.timezone()).isEqualTo("Europe/London");
@@ -87,7 +87,7 @@ class ProfileServiceTest {
         when(users.findById(ada.getId())).thenReturn(Optional.of(ada));
         when(users.saveAndFlush(ada)).thenReturn(ada);
 
-        MeResponse me = service.update(ada.getId(), new UpdateProfileRequest(null, " Africa/Lagos "));
+        MeResponse me = service.update(ada.getId(), new UpdateProfileRequest(null, " Africa/Lagos ", null));
 
         assertThat(me.timezone()).isEqualTo("Africa/Lagos");
         assertThat(me.displayName()).isEqualTo("Ada");
@@ -97,7 +97,7 @@ class ProfileServiceTest {
     void updateRejectsUnknownTimezoneAndSavesNothing() {
         when(users.findById(ada.getId())).thenReturn(Optional.of(ada));
 
-        assertApiError(() -> service.update(ada.getId(), new UpdateProfileRequest(null, "Nowhere/Land")),
+        assertApiError(() -> service.update(ada.getId(), new UpdateProfileRequest(null, "Nowhere/Land", null)),
             HttpStatus.BAD_REQUEST, "INVALID_TIMEZONE");
         verify(users, never()).saveAndFlush(any());
     }

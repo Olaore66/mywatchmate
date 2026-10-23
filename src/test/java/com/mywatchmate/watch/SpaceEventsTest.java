@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -22,6 +23,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 class SpaceEventsTest {
 
     @Mock SimpMessageSendingOperations broker;
+    @Mock ApplicationEventPublisher internal;
 
     private final UUID spaceId = UUID.randomUUID();
 
@@ -34,7 +36,7 @@ class SpaceEventsTest {
 
     @Test
     void outsideATransactionTheEventGoesOutImmediately() {
-        new SpaceEvents(broker).publish(spaceId, SpaceEvent.Type.MEMBER_LEFT, Map.of("id", "x"));
+        new SpaceEvents(broker, internal).publish(spaceId, SpaceEvent.Type.MEMBER_LEFT, Map.of("id", "x"));
 
         ArgumentCaptor<Object> sent = ArgumentCaptor.forClass(Object.class);
         verify(broker).convertAndSend(eq("/topic/spaces/" + spaceId + "/events"), sent.capture());
@@ -49,7 +51,7 @@ class SpaceEventsTest {
     void insideATransactionTheEventWaitsForTheCommit() {
         TransactionSynchronizationManager.initSynchronization();
 
-        new SpaceEvents(broker).publish(spaceId, SpaceEvent.Type.MEMBER_JOINED, null);
+        new SpaceEvents(broker, internal).publish(spaceId, SpaceEvent.Type.MEMBER_JOINED, null);
         verify(broker, never()).convertAndSend(any(String.class), any(Object.class));
 
         TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
@@ -57,10 +59,22 @@ class SpaceEventsTest {
     }
 
     @Test
+    void listenersInsideTheAppHearStraightAwayEvenInATransaction() {
+        TransactionSynchronizationManager.initSynchronization();
+
+        new SpaceEvents(broker, internal).publish(spaceId, SpaceEvent.Type.MEMBER_JOINED, Map.of("id", "x"));
+
+        ArgumentCaptor<Object> heard = ArgumentCaptor.forClass(Object.class);
+        verify(internal).publishEvent(heard.capture());
+        assertThat(((SpaceEvent) heard.getValue()).type()).isEqualTo(SpaceEvent.Type.MEMBER_JOINED);
+        verify(broker, never()).convertAndSend(any(String.class), any(Object.class));
+    }
+
+    @Test
     void aRolledBackTransactionSendsNothing() {
         TransactionSynchronizationManager.initSynchronization();
 
-        new SpaceEvents(broker).publish(spaceId, SpaceEvent.Type.MEMBER_JOINED, null);
+        new SpaceEvents(broker, internal).publish(spaceId, SpaceEvent.Type.MEMBER_JOINED, null);
         TransactionSynchronizationManager.getSynchronizations()
             .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
 

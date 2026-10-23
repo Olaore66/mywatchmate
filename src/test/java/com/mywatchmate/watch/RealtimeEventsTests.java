@@ -99,6 +99,38 @@ class RealtimeEventsTests {
         assertThat(playing.read("$.type", String.class)).isEqualTo("NOW_PLAYING_CHANGED");
         assertThat(playing.read("$.data.externalId", String.class)).isEqualTo("dQw4w9WgXcQ");
         assertThat(playing.read("$.data.title", String.class)).isEqualTo("Morning Prayer");
+
+        post("/api/v1/spaces/" + spaceId + "/sessions/watch-now", ada, "{\"title\":\"Catch-up\"}");
+        DocumentContext started = JsonPath.parse(next(events));
+        assertThat(started.read("$.type", String.class)).isEqualTo("SESSION_STARTED");
+        assertThat(started.read("$.data.status", String.class)).isEqualTo("LIVE");
+        assertThat(started.read("$.data.title", String.class)).isEqualTo("Catch-up");
+        assertThat(started.read("$.data.content.externalId", String.class)).isEqualTo("dQw4w9WgXcQ");
+        assertThat(started.read("$.data.localTimezone", String.class)).isEqualTo("UTC");
+    }
+
+    @Test
+    void eventsArriveInTheOrderTheyHappened() throws Exception {
+        String ada = register("Ada");
+        String spaceId = post("/api/v1/spaces", ada, "{\"title\":\"Busy room\",\"audienceType\":\"FRIENDS\"}").read("$.id");
+        BlockingQueue<Object> events = new LinkedBlockingQueue<>();
+        session = connect(ada, new LinkedBlockingQueue<>());
+        session.subscribe("/topic/spaces/" + spaceId + "/events", collectInto(events));
+        Thread.sleep(300);
+
+        for (int i = 0; i < 10; i++) {
+            post("/api/v1/spaces/" + spaceId + "/content", ada, "{\"url\":\"https://youtu.be/dQw4w9WgX%02d\"}".formatted(i));
+        }
+
+        for (int i = 0; i < 10; i++) {
+            String expectedId = "dQw4w9WgX%02d".formatted(i);
+            DocumentContext added = JsonPath.parse(next(events));
+            DocumentContext playing = JsonPath.parse(next(events));
+            assertThat(added.read("$.type", String.class)).as("event %d", 2 * i).isEqualTo("CONTENT_ADDED");
+            assertThat(added.read("$.data.externalId", String.class)).isEqualTo(expectedId);
+            assertThat(playing.read("$.type", String.class)).as("event %d", 2 * i + 1).isEqualTo("NOW_PLAYING_CHANGED");
+            assertThat(playing.read("$.data.externalId", String.class)).isEqualTo(expectedId);
+        }
     }
 
     @Test

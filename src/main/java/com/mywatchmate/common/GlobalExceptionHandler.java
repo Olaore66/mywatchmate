@@ -44,6 +44,33 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.badRequest().body(problem);
     }
 
+    /**
+     * Errors Spring raises itself (unreadable JSON, wrong method, wrong content type, bad path value)
+     * get a {@code code} too, so every error the frontend sees has one.
+     */
+    @Override
+    protected ResponseEntity<Object> handleExceptionInternal(
+            Exception ex, Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
+        ResponseEntity<Object> response = super.handleExceptionInternal(ex, body, headers, statusCode, request);
+        if (response != null && response.getBody() instanceof ProblemDetail problem
+            && (problem.getProperties() == null || !problem.getProperties().containsKey("code"))) {
+            problem.setProperty("code", codeFor(statusCode));
+        }
+        return response;
+    }
+
+    static String codeFor(HttpStatusCode status) {
+        return switch (status.value()) {
+            case 400 -> "MALFORMED_REQUEST";
+            case 404 -> "NOT_FOUND";
+            case 405 -> "METHOD_NOT_ALLOWED";
+            case 406 -> "NOT_ACCEPTABLE";
+            case 413 -> "PAYLOAD_TOO_LARGE";
+            case 415 -> "UNSUPPORTED_MEDIA_TYPE";
+            default -> "HTTP_" + status.value();
+        };
+    }
+
     @ExceptionHandler(Exception.class)
     ResponseEntity<ProblemDetail> handleUnexpected(Exception ex) {
         log.error("Unhandled error", ex);

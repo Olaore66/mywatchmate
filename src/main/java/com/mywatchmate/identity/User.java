@@ -38,6 +38,10 @@ public class User {
     @Column(nullable = false, length = 64)
     private String timezone = "UTC";
 
+    // Master switch for reminder emails across all rooms
+    @Column(nullable = false)
+    private boolean emailReminders = true;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;

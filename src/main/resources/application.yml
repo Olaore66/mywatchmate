@@ -56,6 +56,23 @@ mywatchmate:
     max-members: ${MAX_MEMBERS_PER_SPACE:50}
     # Where invite links point: <frontend-url>/join/<token>
     frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  sessions:
+    # Repeating schedules are turned into sessions this many days ahead
+    generate-days: 14
+    # A live session ends on its own after this when the video's length is unknown
+    max-length: 3h
+    # ...or this long after a known-length video finishes
+    end-grace: 15m
+  mail:
+    # No MAIL_HOST: reminder emails are printed to the log instead of sent
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    from: ${MAIL_FROM:MyWatchMate <no-reply@mywatchmate.com>}
+  jobs:
+    # Background jobs (sessions, reminders, chat partitions); tests turn this off
+    enabled: true
 
 springdoc:
   api-docs:

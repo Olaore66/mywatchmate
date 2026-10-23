@@ -71,7 +71,8 @@ class SpaceControllerTest {
     void unknownAudienceTypeIsABadRequest() throws Exception {
         mvc.perform(post("/api/v1/spaces").with(asUser(USER)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"title\":\"Room\",\"audienceType\":\"ALIENS\"}"))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
         verifyNoInteractions(spaces);
     }
 

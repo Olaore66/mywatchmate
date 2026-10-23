@@ -8,11 +8,13 @@ Spring Boot 4.1 · Java 21 · PostgreSQL · Flyway. Concept: [watchwithme-idea-c
 |---|---|---|
 | `auth` | Sign-up, sign-in, tokens (users + guests) | `refresh_tokens` |
 | `identity` | Accounts and profile (`/me`) | `users`, `device_tokens` |
-| `watch` | Spaces and synced viewing | `spaces`, `participants`, `content_items`, `schedules`, `watch_sessions` |
+| `watch` | Rooms, members, invites, videos | `spaces`, `participants`, `content_items`, `schedules`, `watch_sessions` |
+| `sessions` | Schedules, sessions, the jobs that start/end them | (uses `schedules`, `watch_sessions`) |
+| `notify` | Reminder emails, device registration | (uses `reminders`, `device_tokens`) |
 | `track` | Accountability | `attendance`, `streaks`, `notes`, `reminders` |
 | `connect` | Chat | `chat_messages` (monthly partitions) |
 | `give` | QR cue → in-room payment | `payment_links`, `space_blocked_links`, `cue_detections`, `gifts` |
-| `config` | Security, JWT, Swagger, WebSocket (STOMP at `/ws`), scheduling | |
+| `config` | Security, JWT, Swagger, WebSocket (STOMP at `/ws`), clock, background jobs switch | |
 | `common` | Error format (problem+json), shared helpers | |
 
 The schema lives in `src/main/resources/db/migration`. Flyway owns it; Hibernate only validates
@@ -85,11 +87,28 @@ keeping their history. WebSocket clients send `Authorization: Bearer <accessToke
    `/topic/spaces/{id}/events` for live updates.
 5. Paste a link: `POST /content/preview` for a preview card → `POST /spaces/{id}/content` to play it for everyone.
 
+6. Sessions: a host creates a schedule (`POST /spaces/{id}/schedules`, e.g. weekdays 06:00 Africa/Lagos);
+   sessions for the next 14 days appear in `GET /spaces/{id}/sessions` and `GET /me/upcoming`. They start
+   and end on their own; members get `SESSION_STARTED` / `SESSION_ENDED`. "Watch now" starts one immediately.
+
+### Background jobs
+
+| Job | Every | Does |
+|---|---|---|
+| `SessionGeneratorJob` | hour | Keeps 14 days of sessions planned for every active schedule |
+| `SessionLifecycleJob` | 30 s | Starts sessions at their time; ends them when the video is over (or after 3 h) |
+| `ReminderDispatchJob` | 30 s | Sends due reminder emails (printed to the log when `MAIL_HOST` isn't set) |
+| `ChatPartitionJob` | day | Creates next months' chat tables |
+
+All are safe to run on several servers at once (row locking, unique constraints). Tests switch them off
+(`mywatchmate.jobs.enabled=false`) and call them directly with a controlled clock.
+
 Permissions are in the **Spaces** section of Swagger; live events are in
 [docs/realtime-events.md](docs/realtime-events.md), including the browser **autoplay** rule.
 
 ## Not built yet
 
-- Schedules, sessions and reminders (Phase 3); play/pause/seek sync (Phase 4)
+- Play/pause/seek sync between viewers (Phase 4)
+- Push notifications (device tokens are already collected; sending needs Firebase/APNs credentials)
 - Redis fan-out for multiple instances (single-instance in-memory broker for now)
 - AI cue worker and Payaza SDK integration
