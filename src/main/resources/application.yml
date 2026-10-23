@@ -41,6 +41,9 @@ spring:
 server:
   # 8080 is taken by a local Apache (httpd) on the dev machine
   port: ${SERVER_PORT:8081}
+  # Behind Caddy (staging) the app is reached over plain HTTP; trust Caddy's X-Forwarded-Proto/Host
+  # so generated URLs (e.g. Swagger's "Try it out") use https. The app port is never exposed directly.
+  forward-headers-strategy: framework
 
 mywatchmate:
   # Frontend origins allowed to call the API and open the WebSocket (comma-separated)

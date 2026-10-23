@@ -268,6 +268,16 @@ class AuthFlowTests {
         mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());
     }
 
+    @Test
+    void behindTheHttpsProxySwaggerCallsTheApiOverHttps() throws Exception {
+        // Caddy reaches the app over plain HTTP and says the original request was HTTPS
+        mvc.perform(get("/v3/api-docs")
+                .header("X-Forwarded-Proto", "https")
+                .header("X-Forwarded-Host", "51-24-72-13.sslip.io"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.servers[0].url").value("https://51-24-72-13.sslip.io"));
+    }
+
     // ---- helpers -------------------------------------------------------------
 
     private static final String PASSWORD = "correct-horse-battery";
