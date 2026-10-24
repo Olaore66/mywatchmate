@@ -48,7 +48,8 @@ public class Note {
     @JoinColumn(name = "author_id")
     private Participant author;
 
-    private Integer contentPositionSeconds;
+    // Where in the video it was written, e.g. 750 for "at 12:30"
+    private Integer positionSeconds;
 
     @Column(nullable = false)
     private String body;
@@ -69,5 +70,13 @@ public class Note {
         this.space = space;
         this.author = author;
         this.body = body;
+    }
+
+    public boolean isShared() {
+        return visibility == Visibility.SHARED;
+    }
+
+    public boolean isBy(Participant participant) {
+        return author.getId().equals(participant.getId());
     }
 }

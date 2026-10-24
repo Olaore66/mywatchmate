@@ -18,6 +18,14 @@ public interface ParticipantRepository extends JpaRepository<Participant, UUID> 
 
     long countBySpaceIdAndLeftAtIsNull(UUID spaceId);
 
+    /** Everyone who has ever been in the room, including people who left, with accounts loaded. */
+    @Query("""
+        select p from Participant p left join fetch p.user
+        where p.space.id = :spaceId
+        order by p.joinedAt
+        """)
+    List<Participant> findAllWithUsers(UUID spaceId);
+
     /** Everyone currently in the room, oldest first, with their accounts loaded. */
     @Query("""
         select p from Participant p left join fetch p.user

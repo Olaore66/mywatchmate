@@ -12,7 +12,7 @@ Spring Boot 4.1 · Java 21 · PostgreSQL · Flyway. Concept: [watchwithme-idea-c
 | `sessions` | Schedules, sessions, the jobs that start/end them | (uses `schedules`, `watch_sessions`) |
 | `live` | Shared play/pause/seek, server clock, who's online, closing removed members' connections | `playback_states` |
 | `notify` | Reminder emails, device registration | (uses `reminders`, `device_tokens`) |
-| `track` | Accountability | `attendance`, `streaks`, `notes`, `reminders` |
+| `track` | Attendance (from presence), streaks, notes | `attendance`, `streaks`, `notes` (+ `reminders`, used by `notify`) |
 | `connect` | Chat | `chat_messages` (monthly partitions) |
 | `give` | QR cue → in-room payment | `payment_links`, `space_blocked_links`, `cue_detections`, `gifts` |
 | `config` | Security, JWT, Swagger, WebSocket (STOMP at `/ws`), clock, background jobs switch | |
@@ -111,6 +111,9 @@ keeping their history. WebSocket clients send `Authorization: Bearer <accessToke
 7. Watching together: `GET /time` for the clock offset, line the player up with `playback` from `GET /spaces/{id}`,
    send presses to `POST /spaces/{id}/playback`, and follow `PLAYBACK_CHANGED`. Recipe in
    [docs/realtime-events.md](docs/realtime-events.md#watching-together-live-sync).
+8. Tracking: attendance is automatic while a session is live (being in the room is enough). After it ends:
+   `GET /spaces/{id}/sessions/{sid}/attendance`, `GET /me/streak` (also `myStreak` in `GET /spaces/{id}`),
+   `GET /me/attendance`; hosts get `GET /spaces/{id}/attendance`. Notes: `/spaces/{id}/notes` (private or shared).
 
 ### Background jobs
 
@@ -119,6 +122,7 @@ keeping their history. WebSocket clients send `Authorization: Bearer <accessToke
 | `SessionGeneratorJob` | hour | Keeps 14 days of sessions planned for every active schedule |
 | `SessionLifecycleJob` | 30 s | Starts sessions at their time; ends them when the video is over (or after 3 h) |
 | `ReminderDispatchJob` | 30 s | Sends due reminder emails (printed to the log when `MAIL_HOST` isn't set) |
+| `AttendanceJob` | 30 s | Adds watch time for everyone with a live session's room open |
 | `ChatPartitionJob` | day | Creates next months' chat tables |
 
 All are safe to run on several servers at once (row locking, unique constraints). Tests switch them off

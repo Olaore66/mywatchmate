@@ -3,6 +3,7 @@ package com.mywatchmate.watch;
 import com.mywatchmate.identity.User;
 import com.mywatchmate.live.PlaybackService;
 import com.mywatchmate.live.PresenceTracker;
+import com.mywatchmate.track.StreakService;
 import com.mywatchmate.watch.dto.ContentResponse;
 import com.mywatchmate.watch.dto.PersonRef;
 import com.mywatchmate.watch.dto.SpaceResponse;
@@ -18,6 +19,7 @@ public class SpaceViews {
     private final SpaceProperties props;
     private final PlaybackService playback;
     private final PresenceTracker presence;
+    private final StreakService streaks;
 
     public SpaceResponse of(SpaceAccess.Membership membership) {
         Space space = membership.space();
@@ -30,6 +32,12 @@ public class SpaceViews {
             new PersonRef(owner.getId(), owner.getDisplayName()), membership.level().name(),
             membership.participant().getId(), membership.canAddContent(), membership.canControlPlayback(),
             memberCount, props.maxMembers(), playing == null ? null : ContentResponse.from(playing),
-            playback.current(space), presence.onlineCount(space.getId()), space.getArchivedAt(), space.getCreatedAt());
+            playback.current(space), presence.onlineCount(space.getId()), myStreak(membership),
+            space.getArchivedAt(), space.getCreatedAt());
+    }
+
+    private Integer myStreak(SpaceAccess.Membership membership) {
+        User user = membership.participant().getUser();
+        return user == null ? null : streaks.currentFor(user.getId());
     }
 }

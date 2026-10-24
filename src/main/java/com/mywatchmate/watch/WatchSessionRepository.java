@@ -61,6 +61,30 @@ public interface WatchSessionRepository extends JpaRepository<WatchSession, UUID
         """, nativeQuery = true)
     List<WatchSession> lockDueToStart(Instant now, int limit);
 
+    /** Live sessions, locked so a second server running the attendance job skips them. */
+    @Query(value = "select * from watch_sessions where status = 'LIVE' for update skip locked", nativeQuery = true)
+    List<WatchSession> lockLive();
+
+    /**
+     * When each session the user was expected at started: sessions that went live in their rooms
+     * while they were a member. Missed ones (never started) don't count against anyone.
+     */
+    @Query("""
+        select s.startedAt from WatchSession s, Participant p
+        where p.user.id = :userId and s.space = p.space
+          and s.status = :ended and s.startedAt is not null
+          and p.joinedAt <= s.startedAt and (p.leftAt is null or p.leftAt > s.startedAt)
+        """)
+    List<Instant> findExpectedStartsForUser(UUID userId, WatchSession.Status ended);
+
+    /** Sessions in a room that went live in [from, to), oldest first. */
+    @Query("""
+        select s from WatchSession s
+        where s.space.id = :spaceId and s.startedAt is not null and s.startedAt >= :from and s.startedAt < :to
+        order by s.startedAt
+        """)
+    List<WatchSession> findStartedBetween(UUID spaceId, Instant from, Instant to);
+
     /** A schedule changed: drop its future sittings so they can be regenerated (reminders cascade). */
     @Modifying(flushAutomatically = true)
     @Query("""

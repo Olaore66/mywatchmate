@@ -18,7 +18,10 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.UpdateTimestamp;
 
-/** One streak per user across all spaces, recomputed from attendance. Guests have none. */
+/**
+ * One streak per user across all spaces, in days (the user's timezone), rebuilt from attendance
+ * whenever one of their sessions ends. Guests have none.
+ */
 @Entity
 @Table(name = "streaks")
 @Getter
@@ -49,5 +52,11 @@ public class Streak {
 
     public Streak(User user) {
         this.user = user;
+    }
+
+    public void apply(StreakCalculator.Result result) {
+        currentCount = result.current();
+        longestCount = result.longest();
+        lastAttendedOn = result.lastAttendedOn();
     }
 }

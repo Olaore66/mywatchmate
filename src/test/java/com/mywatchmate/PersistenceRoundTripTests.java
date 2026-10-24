@@ -59,8 +59,8 @@ class PersistenceRoundTripTests {
         ContentItem stream = contentItems.save(new ContentItem(space, ContentItem.Source.YOUTUBE, "https://youtube.com/watch?v=abc"));
         WatchSession session = sessions.save(new WatchSession(space, stream, Instant.now()));
 
-        attendance.save(new Attendance(session, host));
-        attendance.save(new Attendance(session, guest));
+        attendance.save(new Attendance(session, host, Instant.now()));
+        attendance.save(new Attendance(session, guest, Instant.now()));
         streaks.save(new Streak(owner));
 
         chat.saveAndFlush(new ChatMessage(session, guest, "Amen!"));

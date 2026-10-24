@@ -71,6 +71,10 @@ updated the screen from the REST response.
 | `SESSION_CANCELLED` | A host cancelled a scheduled session | Session |
 | `PLAYBACK_CHANGED` | Someone pressed play/pause/seek, or a new video started (from 0) | Playback |
 | `PRESENCE_CHANGED` | Someone opened or closed the room (first tab in / last tab out) | Presence |
+| `ATTENDANCE_FINALISED` | A session ended and attendance was decided | `{ "sessionId", "attendedCount", "expectedCount" }` ("8 of 10 attended"); refetch `GET /me/streak` |
+| `NOTE_ADDED` | A shared note was written, or a private one was shared | Note |
+| `NOTE_UPDATED` | A shared note was edited | Note |
+| `NOTE_DELETED` | A shared note was deleted, or made private | `{ "noteId": "…" }` |
 
 ### Shapes
 
@@ -121,6 +125,14 @@ is `PAUSED` with `positionMs` = `durationMs`. `durationMs` is null when unknown 
               { "participantId": "8b0c…", "displayName": "Bisi", "guest": true } ] }
 ```
 Each person once, in the order they came online, however many tabs or devices they use.
+
+**Note** (same as `NoteResponse` in Swagger). It's yours when `author.id` equals your `myParticipantId`.
+```json
+{ "id": "3c4d…", "spaceId": "1b2c…", "sessionId": "9e8d…",
+  "author": { "id": "7a9b…", "displayName": "Bisi" }, "body": "Amen!", "visibility": "SHARED",
+  "positionSeconds": 750, "createdAt": "2026-11-02T05:12:30Z", "updatedAt": "2026-11-02T05:12:30Z" }
+```
+Private notes never produce events: only their author ever sees them.
 
 **Schedule** (same as `ScheduleResponse` in Swagger)
 ```json
@@ -224,8 +236,13 @@ More than **1.5 s** apart → `seekTo` it. Don't correct smaller gaps; it makes 
 
 Never pause the room because one person is buffering. They catch up when their video loads.
 
-### 6. Who's watching
+### 6. Who's watching (and attendance)
 
 `onlineCount` is in `GET /spaces/{id}`, and `GET /spaces/{id}/presence` lists the people. After that,
 `PRESENCE_CHANGED` carries the whole list each time someone opens or closes the room. Someone whose
 phone loses signal drops off within about half a minute, once their heartbeats stop (stompjs sends them every 10 s by default; keep that on).
+
+Being online is also what counts as **attendance**: while a session is LIVE, everyone subscribed to
+the room builds up watch time. Nobody taps "I'm here". When it ends, each person counts if they watched
+at least half of it, at most 20 minutes, and the room gets `ATTENDANCE_FINALISED`. So keep the
+subscription open while someone is on the room screen, and close it when they leave the screen.

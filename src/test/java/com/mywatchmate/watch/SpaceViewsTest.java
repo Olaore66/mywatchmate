@@ -13,6 +13,7 @@ import com.mywatchmate.live.PlaybackService;
 import com.mywatchmate.live.PresenceTracker;
 import com.mywatchmate.live.PlaybackState;
 import com.mywatchmate.live.dto.PlaybackResponse;
+import com.mywatchmate.track.StreakService;
 import com.mywatchmate.watch.dto.SpaceResponse;
 import java.time.Instant;
 import java.util.UUID;
@@ -28,6 +29,7 @@ class SpaceViewsTest {
     @Mock ParticipantRepository participants;
     @Mock PlaybackService playback;
     @Mock PresenceTracker presence;
+    @Mock StreakService streaks;
 
     private SpaceViews views;
     private User ada;
@@ -35,7 +37,7 @@ class SpaceViewsTest {
 
     @BeforeEach
     void setUp() {
-        views = new SpaceViews(participants, new SpaceProperties(50, "http://localhost:3000"), playback, presence);
+        views = new SpaceViews(participants, new SpaceProperties(50, "http://localhost:3000"), playback, presence, streaks);
         ada = user("Ada");
         space = space(ada);
         space.setDescription("Daily devotion");
@@ -54,6 +56,7 @@ class SpaceViewsTest {
             1_793_577_600_000L, null, false, 3, null);
         when(playback.current(space)).thenReturn(state);
         when(presence.onlineCount(space.getId())).thenReturn(2);
+        when(streaks.currentFor(ada.getId())).thenReturn(5);
 
         SpaceResponse response = views.of(membership(owner));
 
@@ -71,6 +74,7 @@ class SpaceViewsTest {
         assertThat(response.canControlPlayback()).isTrue();
         assertThat(response.playback()).isSameAs(state);
         assertThat(response.onlineCount()).isEqualTo(2);
+        assertThat(response.myStreak()).isEqualTo(5);
         assertThat(response.archivedAt()).isNull();
         assertThat(response.createdAt()).isEqualTo(Instant.parse("2026-10-01T06:00:00Z"));
     }
@@ -82,6 +86,7 @@ class SpaceViewsTest {
         assertThat(response.myRole()).isEqualTo("GUEST");
         assertThat(response.canAddContent()).isFalse();
         assertThat(response.canControlPlayback()).isFalse();
+        assertThat(response.myStreak()).as("guests have no streak").isNull();
         assertThat(response.nowPlaying()).isNull();
     }
 

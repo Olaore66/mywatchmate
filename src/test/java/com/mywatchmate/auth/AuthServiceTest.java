@@ -20,6 +20,7 @@ import com.mywatchmate.auth.dto.TokenResponse;
 import com.mywatchmate.common.ApiException;
 import com.mywatchmate.identity.User;
 import com.mywatchmate.identity.UserRepository;
+import com.mywatchmate.track.StreakService;
 import com.mywatchmate.watch.Participant;
 import com.mywatchmate.watch.ParticipantRepository;
 import com.mywatchmate.watch.Space;
@@ -54,6 +55,7 @@ class AuthServiceTest {
     @Mock MembershipService membership;
     @Mock TokenService tokens;
     @Mock PasswordEncoder passwordEncoder;
+    @Mock StreakService streaks;
 
     private final JwtProperties props =
         new JwtProperties("x".repeat(32), "mywatchmate", Duration.ofMinutes(15), Duration.ofDays(30));
@@ -71,7 +73,7 @@ class AuthServiceTest {
         lenient().when(tokens.accessTokenSeconds()).thenReturn(900L);
         lenient().when(users.saveAndFlush(any(User.class))).thenAnswer(i -> withId(i.<User>getArgument(0)));
 
-        service = new AuthService(users, refreshTokens, participants, membership, tokens, passwordEncoder, props);
+        service = new AuthService(users, refreshTokens, participants, membership, tokens, passwordEncoder, props, streaks);
         service.init();
     }
 
@@ -402,6 +404,8 @@ class AuthServiceTest {
             assertThat(guest.getGuestTokenHash()).isNull();
             assertThat(guest.getGuestDisplayName()).isNull();
             assertThat(response.user().email()).isEqualTo("bisi@example.com");
+            // Their guest attendance now counts towards a streak
+            verify(streaks).recompute(created.getId());
         }
 
         @Test

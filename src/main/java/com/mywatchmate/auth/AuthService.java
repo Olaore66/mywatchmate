@@ -10,6 +10,7 @@ import com.mywatchmate.common.Timezones;
 import com.mywatchmate.identity.User;
 import com.mywatchmate.identity.UserRepository;
 import com.mywatchmate.identity.dto.MeResponse;
+import com.mywatchmate.track.StreakService;
 import com.mywatchmate.watch.Participant;
 import com.mywatchmate.watch.ParticipantRepository;
 import com.mywatchmate.watch.MembershipService;
@@ -37,6 +38,7 @@ public class AuthService {
     private final TokenService tokens;
     private final PasswordEncoder passwordEncoder;
     private final JwtProperties props;
+    private final StreakService streaks;
 
     // Checked against when the email is unknown, so "no such user" takes as long as "wrong password"
     private String dummyHash;
@@ -117,6 +119,8 @@ public class AuthService {
         }
         User user = createUser(request);
         guest.attachToUser(user);
+        // Their attendance as a guest now counts towards their streak
+        streaks.recompute(user.getId());
         return issueTokens(user, UUID.randomUUID(), userAgent);
     }
 

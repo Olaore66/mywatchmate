@@ -25,6 +25,7 @@ public record SpaceResponse(
     @Schema(description = "What everyone is watching; start this player on load", nullable = true) ContentResponse nowPlaying,
     @Schema(description = "Where that video is right now; line the player up with it") PlaybackResponse playback,
     @Schema(description = "People with the room open right now", example = "3") int onlineCount,
+    @Schema(description = "The caller's streak in days; null for guests", example = "5", nullable = true) Integer myStreak,
     @Schema(description = "Set when archived (owners only can still see it)", nullable = true) Instant archivedAt,
     Instant createdAt
 ) {

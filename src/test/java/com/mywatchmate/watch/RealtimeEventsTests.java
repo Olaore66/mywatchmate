@@ -239,6 +239,41 @@ class RealtimeEventsTests {
     }
 
     @Test
+    void sharedNotesAndTheAttendanceCountReachTheRoomPrivateNotesDont() throws Exception {
+        String ada = register("Ada");
+        String spaceId = post("/api/v1/spaces", ada, "{\"title\":\"Prayer\",\"audienceType\":\"DIASPORA\"}").read("$.id");
+        String invite = get("/api/v1/spaces/" + spaceId + "/invite", ada).read("$.inviteToken");
+        String bisi = post("/api/v1/auth/guest", null, "{\"inviteToken\":\"%s\",\"displayName\":\"Bisi\"}"
+            .formatted(invite)).read("$.accessToken");
+
+        BlockingQueue<Object> adaHears = new LinkedBlockingQueue<>();
+        connect(ada, new LinkedBlockingQueue<>()).subscribe(eventsOf(spaceId),
+            collectInto(adaHears, "NOTE_ADDED", "NOTE_UPDATED", "NOTE_DELETED", "ATTENDANCE_FINALISED"));
+        Thread.sleep(300);
+
+        post("/api/v1/spaces/" + spaceId + "/notes", bisi, "{\"body\":\"Only for me\"}");
+        String noteId = post("/api/v1/spaces/" + spaceId + "/notes", bisi,
+            "{\"body\":\"Amen!\",\"visibility\":\"SHARED\",\"positionSeconds\":750}").read("$.id");
+        DocumentContext added = JsonPath.parse(next(adaHears));
+        assertThat(added.read("$.type", String.class)).as("the private note was never announced").isEqualTo("NOTE_ADDED");
+        assertThat(added.read("$.data.body", String.class)).isEqualTo("Amen!");
+        assertThat(added.read("$.data.author.displayName", String.class)).isEqualTo("Bisi");
+        assertThat(added.read("$.data.positionSeconds", Integer.class)).isEqualTo(750);
+
+        delete("/api/v1/spaces/" + spaceId + "/notes/" + noteId, ada);
+        DocumentContext removed = JsonPath.parse(next(adaHears));
+        assertThat(removed.read("$.type", String.class)).isEqualTo("NOTE_DELETED");
+        assertThat(removed.read("$.data.noteId", String.class)).isEqualTo(noteId);
+
+        String sessionId = post("/api/v1/spaces/" + spaceId + "/sessions/watch-now", ada, "{}").read("$.id");
+        post("/api/v1/spaces/" + spaceId + "/sessions/" + sessionId + "/end", ada, "");
+        DocumentContext finalised = JsonPath.parse(next(adaHears));
+        assertThat(finalised.read("$.type", String.class)).isEqualTo("ATTENDANCE_FINALISED");
+        assertThat(finalised.read("$.data.sessionId", String.class)).isEqualTo(sessionId);
+        assertThat(finalised.read("$.data.expectedCount", Integer.class)).as("Ada and Bisi").isEqualTo(2);
+    }
+
+    @Test
     void outsidersAreCutOffWhenTheyTryToListenToARoom() throws Exception {
         String ada = register("Ada");
         String spaceId = post("/api/v1/spaces", ada, "{\"title\":\"Private\",\"audienceType\":\"FRIENDS\"}").read("$.id");
