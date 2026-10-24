@@ -5,6 +5,9 @@ import com.mywatchmate.auth.PrincipalAuthentication;
 import com.mywatchmate.watch.SpaceAccess;
 import com.mywatchmate.watch.SpaceEvents;
 import java.security.Principal;
+import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -20,14 +23,18 @@ import org.springframework.stereotype.Component;
 /**
  * Authenticates STOMP connections with the same access token as REST:
  * the client sends {@code Authorization: Bearer <token>} on the CONNECT frame.
- * Frames from an unauthenticated session are rejected, and a room's topics
- * ({@code /topic/spaces/{id}/...}) can only be subscribed to by its current members.
+ * Frames from an unauthenticated session are rejected, a room's topics
+ * ({@code /topic/spaces/{id}/...}) can only be subscribed to by its current members, and the only
+ * frames clients may SEND are typing and reactions to a room they're in.
  */
 @Component
 @RequiredArgsConstructor
 public class WebSocketAuthInterceptor implements ChannelInterceptor {
 
     private static final String BEARER = "Bearer ";
+    // What clients may SEND: typing and reactions, to a room they're in
+    private static final Pattern ROOM_ACTION = Pattern.compile(
+        "^/app/spaces/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/(typing|reaction)$");
 
     private final JwtDecoder jwtDecoder;
     private final JwtPrincipalConverter converter;
@@ -58,8 +65,20 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
             if (command == StompCommand.SUBSCRIBE && !maySubscribe(auth, accessor.getDestination())) {
                 throw new AccessDeniedException("Not allowed to subscribe to " + accessor.getDestination());
             }
+            if (command == StompCommand.SEND && !maySend(auth, accessor.getDestination())) {
+                throw new AccessDeniedException("Not allowed to send to " + accessor.getDestination());
+            }
         }
         return message;
+    }
+
+    /** Typing and reactions to a room the sender is currently in; nothing else. */
+    private boolean maySend(PrincipalAuthentication auth, String destination) {
+        if (destination == null) {
+            return false;
+        }
+        Matcher action = ROOM_ACTION.matcher(destination);
+        return action.matches() && spaceAccess.isActiveMember(auth.getPrincipal(), UUID.fromString(action.group(1)));
     }
 
     /** Own queues: always. A room's topics: current members only. Anything else: no. */

@@ -1,5 +1,6 @@
 package com.mywatchmate.watch;
 
+import com.mywatchmate.connect.ChatService;
 import com.mywatchmate.identity.User;
 import com.mywatchmate.live.PlaybackService;
 import com.mywatchmate.live.PresenceTracker;
@@ -7,6 +8,7 @@ import com.mywatchmate.track.StreakService;
 import com.mywatchmate.watch.dto.ContentResponse;
 import com.mywatchmate.watch.dto.PersonRef;
 import com.mywatchmate.watch.dto.SpaceResponse;
+import java.time.Clock;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +22,8 @@ public class SpaceViews {
     private final PlaybackService playback;
     private final PresenceTracker presence;
     private final StreakService streaks;
+    private final ChatService chat;
+    private final Clock clock;
 
     public SpaceResponse of(SpaceAccess.Membership membership) {
         Space space = membership.space();
@@ -27,12 +31,15 @@ public class SpaceViews {
         long memberCount = participants.countBySpaceIdAndLeftAtIsNull(space.getId());
         User owner = space.getOwner();
         ContentItem playing = space.getCurrentContent();
+        boolean muted = membership.participant().isChatMuted(clock.instant());
         return new SpaceResponse(space.getId(), space.getTitle(), space.getDescription(), space.getAudienceType(),
             space.isAllowGuests(), space.isMembersCanAddContent(), space.isMembersCanControlPlayback(),
             new PersonRef(owner.getId(), owner.getDisplayName()), membership.level().name(),
             membership.participant().getId(), membership.canAddContent(), membership.canControlPlayback(),
             memberCount, props.maxMembers(), playing == null ? null : ContentResponse.from(playing),
             playback.current(space), presence.onlineCount(space.getId()), myStreak(membership),
+            chat.unreadCount(membership.participant()),
+            ChatService.shownUntil(muted ? membership.participant().getChatMutedUntil() : null), muted,
             space.getArchivedAt(), space.getCreatedAt());
     }
 

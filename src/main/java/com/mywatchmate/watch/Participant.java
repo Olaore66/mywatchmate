@@ -70,6 +70,12 @@ public class Participant {
     // Reminder this many minutes before each session in this room; null = no reminders
     private Integer reminderMinutesBefore = 10;
 
+    // A host muted them in the room's chat until then
+    private Instant chatMutedUntil;
+
+    // Chat up to here counts as read; null = since they joined
+    private Instant chatLastReadAt;
+
     public static Participant member(Space space, User user, Role role) {
         Participant p = new Participant();
         p.space = space;
@@ -124,6 +130,30 @@ public class Participant {
 
     public void changeRole(Role newRole) {
         this.role = newRole;
+    }
+
+    public boolean isChatMuted(Instant now) {
+        return chatMutedUntil != null && chatMutedUntil.isAfter(now);
+    }
+
+    public void muteChat(Instant until) {
+        chatMutedUntil = until;
+    }
+
+    public void unmuteChat() {
+        chatMutedUntil = null;
+    }
+
+    /** Never moves backwards (e.g. a slow request from another tab). */
+    public void markChatRead(Instant upTo) {
+        if (chatLastReadAt == null || upTo.isAfter(chatLastReadAt)) {
+            chatLastReadAt = upTo;
+        }
+    }
+
+    /** Messages after this are unread. */
+    public Instant chatReadSince() {
+        return chatLastReadAt != null ? chatLastReadAt : joinedAt;
     }
 
     /** A guest who registered: their history stays, and their guest device token stops working. */

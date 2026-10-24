@@ -26,6 +26,10 @@ public record SpaceResponse(
     @Schema(description = "Where that video is right now; line the player up with it") PlaybackResponse playback,
     @Schema(description = "People with the room open right now", example = "3") int onlineCount,
     @Schema(description = "The caller's streak in days; null for guests", example = "5", nullable = true) Integer myStreak,
+    @Schema(description = "Chat messages from others since the caller last read the chat", example = "3") long unreadCount,
+    @Schema(description = "When the caller's chat mute ends; null if not muted or muted until a host unmutes them",
+        nullable = true) Instant chatMutedUntil,
+    @Schema(description = "The caller can't send chat messages right now") boolean chatMuted,
     @Schema(description = "Set when archived (owners only can still see it)", nullable = true) Instant archivedAt,
     Instant createdAt
 ) {

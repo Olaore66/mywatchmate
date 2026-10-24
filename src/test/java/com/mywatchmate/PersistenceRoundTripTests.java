@@ -63,7 +63,7 @@ class PersistenceRoundTripTests {
         attendance.save(new Attendance(session, guest, Instant.now()));
         streaks.save(new Streak(owner));
 
-        chat.saveAndFlush(new ChatMessage(session, guest, "Amen!"));
+        chat.saveAndFlush(new ChatMessage(session.getSpace(), session, guest, "Amen!", Instant.now()));
 
         PaymentLink link = paymentLinks.save(new PaymentLink("https://payaza.example/pay/xyz", PaymentLink.Provider.PAYAZA));
         CueDetection cue = new CueDetection(session, CueDetection.CueType.QR, "https://payaza.example/pay/xyz", CueDetection.Status.SHOWN);

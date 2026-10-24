@@ -274,6 +274,63 @@ class RealtimeEventsTests {
     }
 
     @Test
+    void chatTypingAndReactionsReachTheRoomLive() throws Exception {
+        String ada = register("Ada");
+        String spaceId = post("/api/v1/spaces", ada, "{\"title\":\"Prayer\",\"audienceType\":\"DIASPORA\"}").read("$.id");
+        String invite = get("/api/v1/spaces/" + spaceId + "/invite", ada).read("$.inviteToken");
+        DocumentContext guest = post("/api/v1/auth/guest", null, "{\"inviteToken\":\"%s\",\"displayName\":\"Bisi\"}"
+            .formatted(invite));
+        String bisi = guest.read("$.accessToken");
+
+        BlockingQueue<Object> adaHears = new LinkedBlockingQueue<>();
+        connect(ada, new LinkedBlockingQueue<>()).subscribe(eventsOf(spaceId), collectInto(adaHears,
+            "CHAT_MESSAGE", "CHAT_DELETED", "TYPING", "REACTION", "MEMBER_MUTED"));
+        StompSession bisiSession = connect(bisi, new LinkedBlockingQueue<>());
+        Thread.sleep(300);
+
+        // Typing and reactions go straight over the WebSocket
+        bisiSession.send("/app/spaces/" + spaceId + "/typing", "");
+        DocumentContext typing = JsonPath.parse(next(adaHears));
+        assertThat(typing.read("$.type", String.class)).isEqualTo("TYPING");
+        assertThat(typing.read("$.data.displayName", String.class)).isEqualTo("Bisi");
+
+        bisiSession.send("/app/spaces/" + spaceId + "/reaction", Map.of("emoji", "💩"));
+        bisiSession.send("/app/spaces/" + spaceId + "/reaction", Map.of("emoji", "🙏"));
+        DocumentContext reaction = JsonPath.parse(next(adaHears));
+        assertThat(reaction.read("$.type", String.class)).as("the unknown emoji was dropped").isEqualTo("REACTION");
+        assertThat(reaction.read("$.data.emoji", String.class)).isEqualTo("🙏");
+
+        // A message is sent over REST and heard by everyone
+        String messageId = post("/api/v1/spaces/" + spaceId + "/chat", bisi, "{\"body\":\"Amen 🙏\"}").read("$.id");
+        DocumentContext message = JsonPath.parse(next(adaHears));
+        assertThat(message.read("$.type", String.class)).isEqualTo("CHAT_MESSAGE");
+        assertThat(message.read("$.data.id", String.class)).isEqualTo(messageId);
+        assertThat(message.read("$.data.body", String.class)).isEqualTo("Amen 🙏");
+
+        // Ada mutes Bisi: her typing is dropped from then on; Ada removes the message
+        post("/api/v1/spaces/" + spaceId + "/participants/" + guest.read("$.participantId") + "/mute", ada, "{\"minutes\":5}");
+        assertThat(JsonPath.parse(next(adaHears)).read("$.type", String.class)).isEqualTo("MEMBER_MUTED");
+        Thread.sleep(2100);
+        bisiSession.send("/app/spaces/" + spaceId + "/typing", "");
+        delete("/api/v1/spaces/" + spaceId + "/chat/" + messageId, ada);
+        DocumentContext deleted = JsonPath.parse(next(adaHears));
+        assertThat(deleted.read("$.type", String.class)).as("muted typing was dropped").isEqualTo("CHAT_DELETED");
+        assertThat(deleted.read("$.data.messageId", String.class)).isEqualTo(messageId);
+    }
+
+    @Test
+    void outsidersCantSendToARoom() throws Exception {
+        String ada = register("Ada");
+        String spaceId = post("/api/v1/spaces", ada, "{\"title\":\"Private\",\"audienceType\":\"FRIENDS\"}").read("$.id");
+        String kemi = register("Kemi");
+
+        BlockingQueue<String> errors = new LinkedBlockingQueue<>();
+        connect(kemi, errors).send("/app/spaces/" + spaceId + "/typing", "");
+
+        assertThat(errors.poll(5, TimeUnit.SECONDS)).isEqualTo("Not allowed to send to /app/spaces/" + spaceId + "/typing");
+    }
+
+    @Test
     void outsidersAreCutOffWhenTheyTryToListenToARoom() throws Exception {
         String ada = register("Ada");
         String spaceId = post("/api/v1/spaces", ada, "{\"title\":\"Private\",\"audienceType\":\"FRIENDS\"}").read("$.id");

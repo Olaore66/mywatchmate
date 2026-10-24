@@ -93,9 +93,10 @@ class SpaceControllerTest {
     @Test
     void myRoomsDefaultsToActiveRooms() throws Exception {
         when(spaces.listMine(USER, false)).thenReturn(List.of(new SpaceSummaryResponse(SPACE, "6am Prayer",
-            Space.AudienceType.DIASPORA, Participant.Role.OWNER, 3L, "Morning Prayer", null, null, Instant.now())));
+            Space.AudienceType.DIASPORA, Participant.Role.OWNER, 3L, "Morning Prayer", null, 4L, null, Instant.now())));
 
         mvc.perform(get("/api/v1/spaces").with(asUser(USER)))
+            .andExpect(jsonPath("$[0].unreadCount").value(4))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].memberCount").value(3))
             .andExpect(jsonPath("$[0].nowPlayingTitle").value("Morning Prayer"));
@@ -193,6 +194,6 @@ class SpaceControllerTest {
     private static SpaceResponse room(String myRole) {
         boolean host = myRole.equals("OWNER");
         return new SpaceResponse(SPACE, "6am Prayer", null, Space.AudienceType.DIASPORA, true, false, false,
-            new PersonRef(USER, "Ada"), myRole, UUID.randomUUID(), host, host, 1, 50, null, null, 0, 3, null, Instant.now());
+            new PersonRef(USER, "Ada"), myRole, UUID.randomUUID(), host, host, 1, 50, null, null, 0, 3, 2, null, false, null, Instant.now());
     }
 }

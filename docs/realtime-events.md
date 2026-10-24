@@ -75,6 +75,12 @@ updated the screen from the REST response.
 | `NOTE_ADDED` | A shared note was written, or a private one was shared | Note |
 | `NOTE_UPDATED` | A shared note was edited | Note |
 | `NOTE_DELETED` | A shared note was deleted, or made private | `{ "noteId": "…" }` |
+| `CHAT_MESSAGE` | Someone sent a chat message (you too: same `id` as your POST response) | ChatMessage |
+| `CHAT_DELETED` | A message was deleted (by its sender or a host) | `{ "messageId": "…" }`: show "message deleted" |
+| `MEMBER_MUTED` | A host muted someone in the chat | `{ "participant": Participant, "mutedUntil": "…" }` (null: until unmuted) |
+| `MEMBER_UNMUTED` | A host unmuted them | `{ "participantId": "…" }` |
+| `TYPING` | Someone is typing (at most every 2 s each; hide after ~4 s without another) | `{ "participantId", "displayName", "emoji": null }` |
+| `REACTION` | A floating reaction | `{ "participantId", "displayName", "emoji": "🙏" }` |
 
 ### Shapes
 
@@ -134,6 +140,15 @@ Each person once, in the order they came online, however many tabs or devices th
 ```
 Private notes never produce events: only their author ever sees them.
 
+**ChatMessage** (same as `ChatMessageResponse` in Swagger). It's yours when `sender.id` equals your `myParticipantId`.
+```json
+{ "id": "6d7e…", "spaceId": "1b2c…", "sessionId": null,
+  "sender": { "id": "7a9b…", "displayName": "Bisi" }, "senderGuest": true,
+  "body": "Amen 🙏", "deleted": false, "deletedByHost": false, "createdAt": "2026-11-02T05:12:30.123456Z" }
+```
+`sessionId` is set when the message was sent during a live session. Deleted messages keep their place
+with `deleted: true` and `body: null`.
+
 **Schedule** (same as `ScheduleResponse` in Swagger)
 ```json
 { "id": "4f5a…", "spaceId": "1b2c…", "title": "Morning Devotion",
@@ -155,6 +170,34 @@ On `NOW_PLAYING_CHANGED` (and on opening a room, from `nowPlaying` in `GET /spac
 **Autoplay:** browsers block autoplay with sound until the person has interacted with the page.
 Show a "Tap to watch together" button when someone enters a room; after that tap, later videos
 can start automatically. Alternative: start muted with an "Unmute" button.
+
+## Chat
+
+Messages are **sent over REST** (`POST /spaces/{id}/chat`, see Swagger: errors like `CHAT_MUTED` and
+`CHAT_RATE_LIMITED` come back properly) and **arrive over the WebSocket** as `CHAT_MESSAGE`.
+History: `GET /spaces/{id}/chat` gives the newest 50, oldest first; pass `olderCursor` back as `before`
+to load the page above when the person scrolls up.
+
+**Typing and reactions are sent over the WebSocket** (they're throwaway, never stored):
+
+```js
+// while the person types (the server passes on at most one every 2 seconds)
+client.publish({ destination: `/app/spaces/${spaceId}/typing` });
+
+// a floating reaction: one of 🙏 ❤️ 🔥 😂 👏 😮 (anything else is ignored)
+client.publish({
+  destination: `/app/spaces/${spaceId}/reaction`,
+  body: JSON.stringify({ emoji: "🙏" }),
+  headers: { "content-type": "application/json" },
+});
+```
+
+Only these two destinations accept SEND, and only for rooms you're in; anything else gets an ERROR frame.
+Typing and reactions from muted people are dropped.
+
+**Unread badges:** `unreadCount` is in `GET /spaces` (room list) and `GET /spaces/{id}`. Call
+`POST /spaces/{id}/chat/read` when the chat is on screen, and again as messages arrive while it is.
+**Muted:** `chatMuted` / `chatMutedUntil` in `GET /spaces/{id}`; disable the input while muted.
 
 ## Watching together (live sync)
 

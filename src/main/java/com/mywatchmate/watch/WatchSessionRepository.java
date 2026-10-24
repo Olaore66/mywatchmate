@@ -20,6 +20,8 @@ public interface WatchSessionRepository extends JpaRepository<WatchSession, UUID
 
     boolean existsBySpaceIdAndStatus(UUID spaceId, WatchSession.Status status);
 
+    Optional<WatchSession> findFirstBySpaceIdAndStatus(UUID spaceId, WatchSession.Status status);
+
     Optional<WatchSession> findFirstByScheduleIdAndStatusOrderByScheduledAt(UUID scheduleId, WatchSession.Status status);
 
     List<WatchSession> findBySpaceIdAndStatusAndScheduledAtAfter(UUID spaceId, WatchSession.Status status, Instant after);

@@ -13,7 +13,7 @@ Spring Boot 4.1 · Java 21 · PostgreSQL · Flyway. Concept: [watchwithme-idea-c
 | `live` | Shared play/pause/seek, server clock, who's online, closing removed members' connections | `playback_states` |
 | `notify` | Reminder emails, device registration | (uses `reminders`, `device_tokens`) |
 | `track` | Attendance (from presence), streaks, notes | `attendance`, `streaks`, `notes` (+ `reminders`, used by `notify`) |
-| `connect` | Chat | `chat_messages` (monthly partitions) |
+| `connect` | Room chat (kept forever), mutes, typing and reactions | `chat_messages` (monthly partitions) |
 | `give` | QR cue → in-room payment | `payment_links`, `space_blocked_links`, `cue_detections`, `gifts` |
 | `config` | Security, JWT, Swagger, WebSocket (STOMP at `/ws`), clock, background jobs switch | |
 | `common` | Error format (problem+json), shared helpers | |
@@ -114,6 +114,8 @@ keeping their history. WebSocket clients send `Authorization: Bearer <accessToke
 8. Tracking: attendance is automatic while a session is live (being in the room is enough). After it ends:
    `GET /spaces/{id}/sessions/{sid}/attendance`, `GET /me/streak` (also `myStreak` in `GET /spaces/{id}`),
    `GET /me/attendance`; hosts get `GET /spaces/{id}/attendance`. Notes: `/spaces/{id}/notes` (private or shared).
+9. Chat: `GET/POST /spaces/{id}/chat` (send over REST, receive `CHAT_MESSAGE` live), typing and reactions over
+   the WebSocket, `unreadCount` badges, hosts mute with `POST /spaces/{id}/participants/{pid}/mute`.
 
 ### Background jobs
 
@@ -133,6 +135,7 @@ Permissions are in the **Spaces** section of Swagger; live events are in
 
 ## Not built yet
 
+- Voice/video calls in rooms (Phase 6b, waiting on the LiveKit decision and keys)
 - Push notifications (device tokens are already collected; sending needs Firebase/APNs credentials)
 - Redis fan-out for multiple instances (single-instance in-memory broker and presence for now)
 - AI cue worker and Payaza SDK integration

@@ -21,7 +21,11 @@ public interface SpaceRepository extends JpaRepository<Space, UUID> {
         select new com.mywatchmate.watch.dto.SpaceSummaryResponse(
             s.id, s.title, s.audienceType, p.role,
             (select count(m) from Participant m where m.space = s and m.leftAt is null),
-            c.title, c.thumbnailUrl, s.archivedAt, s.createdAt)
+            c.title, c.thumbnailUrl,
+            (select count(cm) from ChatMessage cm
+             where cm.space = s and cm.participant <> p and cm.deletedAt is null
+               and cm.createdAt > coalesce(p.chatLastReadAt, p.joinedAt)),
+            s.archivedAt, s.createdAt)
         from Participant p
             join p.space s
             left join s.currentContent c

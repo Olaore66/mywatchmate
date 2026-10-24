@@ -1,6 +1,7 @@
 package com.mywatchmate.connect;
 
 import com.mywatchmate.watch.Participant;
+import com.mywatchmate.watch.Space;
 import com.mywatchmate.watch.WatchSession;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -18,7 +19,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Kept permanently; a sender deleting a message only sets {@code deletedAt}. */
+/**
+ * A message in a room's chat, kept permanently. Deleting only sets {@code deletedAt}: the app shows
+ * "message deleted" and never the text. Tagged with the session that was live when it was sent, if any.
+ */
 @Entity
 @Table(name = "chat_messages")
 @IdClass(ChatMessageId.class)
@@ -35,6 +39,10 @@ public class ChatMessage {
     private Instant createdAt;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "space_id")
+    private Space space;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "session_id")
     private WatchSession session;
 
@@ -47,12 +55,33 @@ public class ChatMessage {
 
     private Instant deletedAt;
 
-    public ChatMessage(WatchSession session, Participant participant, String body) {
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "deleted_by")
+    private Participant deletedBy;
+
+    public ChatMessage(Space space, WatchSession session, Participant participant, String body, Instant now) {
         this.id = UUID.randomUUID();
         // Postgres stores microseconds; truncate so the in-memory key matches the stored one
-        this.createdAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        this.createdAt = now.truncatedTo(ChronoUnit.MICROS);
+        this.space = space;
         this.session = session;
         this.participant = participant;
         this.body = body;
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    public boolean isFrom(Participant someone) {
+        return participant.getId().equals(someone.getId());
+    }
+
+    /** Deleting twice keeps the first deletion. */
+    public void delete(Instant now, Participant by) {
+        if (deletedAt == null) {
+            deletedAt = now;
+            deletedBy = by;
+        }
     }
 }

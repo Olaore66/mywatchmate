@@ -82,4 +82,31 @@ class ParticipantTest {
         assertThat(guest.getGuestTokenHash()).isNull();
         assertThat(guest.getSpace()).isSameAs(space);
     }
+
+    @Test
+    void aChatMuteLastsUntilItEndsOrIsLifted() {
+        Participant bisi = Participant.guest(space, "Bisi", "h");
+        Instant now = Instant.parse("2026-11-02T05:00:00Z");
+        assertThat(bisi.isChatMuted(now)).isFalse();
+
+        bisi.muteChat(now.plusSeconds(60));
+        assertThat(bisi.isChatMuted(now)).isTrue();
+        assertThat(bisi.isChatMuted(now.plusSeconds(60))).as("ends exactly then").isFalse();
+
+        bisi.unmuteChat();
+        assertThat(bisi.isChatMuted(now)).isFalse();
+        assertThat(bisi.getChatMutedUntil()).isNull();
+    }
+
+    @Test
+    void chatIsUnreadSinceJoiningUntilReadAndReadingNeverGoesBackwards() {
+        Participant bisi = Participant.guest(space, "Bisi", "h");
+        bisi.setJoinedAt(Instant.parse("2026-11-01T00:00:00Z"));
+        assertThat(bisi.chatReadSince()).isEqualTo(Instant.parse("2026-11-01T00:00:00Z"));
+
+        bisi.markChatRead(Instant.parse("2026-11-02T05:00:00Z"));
+        bisi.markChatRead(Instant.parse("2026-11-02T04:00:00Z"));
+
+        assertThat(bisi.chatReadSince()).isEqualTo(Instant.parse("2026-11-02T05:00:00Z"));
+    }
 }

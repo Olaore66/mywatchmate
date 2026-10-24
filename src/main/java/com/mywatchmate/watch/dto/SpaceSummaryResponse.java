@@ -15,6 +15,7 @@ public record SpaceSummaryResponse(
     @Schema(example = "4") Long memberCount,
     @Schema(example = "Morning Prayer, Day 12", nullable = true) String nowPlayingTitle,
     @Schema(nullable = true) String nowPlayingThumbnailUrl,
+    @Schema(description = "Chat messages from others since I last read the chat (the badge)", example = "3") Long unreadCount,
     @Schema(nullable = true) Instant archivedAt,
     Instant createdAt
 ) {

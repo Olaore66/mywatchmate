@@ -125,12 +125,44 @@ class WebSocketAuthInterceptorTest {
     }
 
     @Test
-    void sendFromAnAuthenticatedSessionPassesThrough() {
-        Message<byte[]> send = frame(StompCommand.SEND, null);
-        StompHeaderAccessor.getAccessor(send, StompHeaderAccessor.class)
-            .setUser(new JwtPrincipalConverter().convert(userJwt(UUID.randomUUID())));
+    void membersMaySendTypingAndReactionsToTheirRoom() {
+        UUID userId = UUID.randomUUID();
+        UUID spaceId = UUID.randomUUID();
+        when(spaceAccess.isActiveMember(AuthPrincipal.user(userId), spaceId)).thenReturn(true);
 
-        assertThat(interceptor.preSend(send, null)).isSameAs(send);
+        Message<byte[]> typing = signedIn(StompCommand.SEND, userId, "/app/spaces/" + spaceId + "/typing");
+        Message<byte[]> reaction = signedIn(StompCommand.SEND, userId, "/app/spaces/" + spaceId + "/reaction");
+
+        assertThat(interceptor.preSend(typing, null)).isSameAs(typing);
+        assertThat(interceptor.preSend(reaction, null)).isSameAs(reaction);
+    }
+
+    @Test
+    void outsidersCantSendToARoom() {
+        UUID userId = UUID.randomUUID();
+        UUID spaceId = UUID.randomUUID();
+        when(spaceAccess.isActiveMember(AuthPrincipal.user(userId), spaceId)).thenReturn(false);
+
+        assertThatThrownBy(() -> interceptor.preSend(
+            signedIn(StompCommand.SEND, userId, "/app/spaces/" + spaceId + "/typing"), null))
+            .isInstanceOf(AccessDeniedException.class)
+            .hasMessage("Not allowed to send to /app/spaces/" + spaceId + "/typing");
+    }
+
+    @Test
+    void nothingElseMayBeSentEvenByMembers() {
+        UUID userId = UUID.randomUUID();
+        UUID spaceId = UUID.randomUUID();
+        for (String destination : new String[] {"/app/spaces/" + spaceId + "/chat", "/topic/spaces/" + spaceId + "/events",
+            "/app/spaces/not-a-room/typing", "/app/other"}) {
+            assertThatThrownBy(() -> interceptor.preSend(signedIn(StompCommand.SEND, userId, destination), null))
+                .as(destination).isInstanceOf(AccessDeniedException.class);
+        }
+        Message<byte[]> noDestination = frame(StompCommand.SEND, null);
+        StompHeaderAccessor.getAccessor(noDestination, StompHeaderAccessor.class)
+            .setUser(new JwtPrincipalConverter().convert(userJwt(userId)));
+        assertThatThrownBy(() -> interceptor.preSend(noDestination, null)).isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(spaceAccess);
     }
 
     @Test

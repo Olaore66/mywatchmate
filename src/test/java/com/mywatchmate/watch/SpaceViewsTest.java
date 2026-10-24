@@ -8,11 +8,13 @@ import static com.mywatchmate.watch.WatchFixtures.user;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.mywatchmate.connect.ChatService;
 import com.mywatchmate.identity.User;
 import com.mywatchmate.live.PlaybackService;
 import com.mywatchmate.live.PresenceTracker;
 import com.mywatchmate.live.PlaybackState;
 import com.mywatchmate.live.dto.PlaybackResponse;
+import com.mywatchmate.testsupport.Fixtures;
 import com.mywatchmate.track.StreakService;
 import com.mywatchmate.watch.dto.SpaceResponse;
 import java.time.Instant;
@@ -30,6 +32,7 @@ class SpaceViewsTest {
     @Mock PlaybackService playback;
     @Mock PresenceTracker presence;
     @Mock StreakService streaks;
+    @Mock ChatService chat;
 
     private SpaceViews views;
     private User ada;
@@ -37,7 +40,8 @@ class SpaceViewsTest {
 
     @BeforeEach
     void setUp() {
-        views = new SpaceViews(participants, new SpaceProperties(50, "http://localhost:3000"), playback, presence, streaks);
+        views = new SpaceViews(participants, new SpaceProperties(50, "http://localhost:3000"), playback, presence, streaks, chat,
+            Fixtures.clockAt(Fixtures.MONDAY_MIDNIGHT));
         ada = user("Ada");
         space = space(ada);
         space.setDescription("Daily devotion");
@@ -57,6 +61,7 @@ class SpaceViewsTest {
         when(playback.current(space)).thenReturn(state);
         when(presence.onlineCount(space.getId())).thenReturn(2);
         when(streaks.currentFor(ada.getId())).thenReturn(5);
+        when(chat.unreadCount(owner)).thenReturn(3L);
 
         SpaceResponse response = views.of(membership(owner));
 
@@ -75,6 +80,9 @@ class SpaceViewsTest {
         assertThat(response.playback()).isSameAs(state);
         assertThat(response.onlineCount()).isEqualTo(2);
         assertThat(response.myStreak()).isEqualTo(5);
+        assertThat(response.unreadCount()).isEqualTo(3);
+        assertThat(response.chatMuted()).isFalse();
+        assertThat(response.chatMutedUntil()).isNull();
         assertThat(response.archivedAt()).isNull();
         assertThat(response.createdAt()).isEqualTo(Instant.parse("2026-10-01T06:00:00Z"));
     }
@@ -97,6 +105,21 @@ class SpaceViewsTest {
         assertThat(views.of(membership(tunde)).canAddContent()).isFalse();
         space.setMembersCanAddContent(true);
         assertThat(views.of(membership(tunde)).canAddContent()).isTrue();
+    }
+
+    @Test
+    void aMutedMemberSeesWhenTheirMuteEnds() {
+        Participant tunde = member(space, user("Tunde"), Participant.Role.MEMBER);
+        Instant until = Fixtures.MONDAY_MIDNIGHT.plusSeconds(3600);
+        tunde.muteChat(until);
+
+        SpaceResponse response = views.of(membership(tunde));
+
+        assertThat(response.chatMuted()).isTrue();
+        assertThat(response.chatMutedUntil()).isEqualTo(until);
+
+        tunde.muteChat(Fixtures.MONDAY_MIDNIGHT.minusSeconds(1));
+        assertThat(views.of(membership(tunde)).chatMuted()).as("an expired mute").isFalse();
     }
 
     @Test
