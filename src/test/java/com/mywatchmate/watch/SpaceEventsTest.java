@@ -3,7 +3,9 @@ package com.mywatchmate.watch;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.util.Map;
@@ -68,6 +70,36 @@ class SpaceEventsTest {
         verify(internal).publishEvent(heard.capture());
         assertThat(((SpaceEvent) heard.getValue()).type()).isEqualTo(SpaceEvent.Type.MEMBER_JOINED);
         verify(broker, never()).convertAndSend(any(String.class), any(Object.class));
+    }
+
+    @Test
+    void followUpEventsFromListenersGoOutAfterTheirCause() {
+        TransactionSynchronizationManager.initSynchronization();
+        SpaceEvents events = new SpaceEvents(broker, internal);
+        // A listener reacting to NOW_PLAYING_CHANGED publishes PLAYBACK_CHANGED
+        doAnswer(heard -> {
+            if (((SpaceEvent) heard.getArgument(0)).type() == SpaceEvent.Type.NOW_PLAYING_CHANGED) {
+                events.publish(spaceId, SpaceEvent.Type.PLAYBACK_CHANGED, null);
+            }
+            return null;
+        }).when(internal).publishEvent(any(Object.class));
+
+        events.publish(spaceId, SpaceEvent.Type.NOW_PLAYING_CHANGED, null);
+        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+
+        ArgumentCaptor<Object> sent = ArgumentCaptor.forClass(Object.class);
+        verify(broker, times(2)).convertAndSend(eq(SpaceEvents.topic(spaceId)), sent.capture());
+        assertThat(sent.getAllValues()).extracting(e -> ((SpaceEvent) e).type())
+            .containsExactly(SpaceEvent.Type.NOW_PLAYING_CHANGED, SpaceEvent.Type.PLAYBACK_CHANGED);
+    }
+
+    @Test
+    void roomTopicsAreRecognised() {
+        assertThat(SpaceEvents.roomOf("/topic/spaces/" + spaceId + "/events")).contains(spaceId);
+        assertThat(SpaceEvents.roomOf("/topic/spaces/" + spaceId)).contains(spaceId);
+        assertThat(SpaceEvents.roomOf("/topic/spaces/not-a-uuid/events")).isEmpty();
+        assertThat(SpaceEvents.roomOf("/user/queue/errors")).isEmpty();
+        assertThat(SpaceEvents.roomOf(null)).isEmpty();
     }
 
     @Test

@@ -57,8 +57,8 @@ class InviteControllerTest {
     void signedInUsersJoin() throws Exception {
         UUID space = UUID.randomUUID();
         when(membership.join(USER, "tok")).thenReturn(new SpaceResponse(space, "6am Prayer", null,
-            Space.AudienceType.DIASPORA, true, false, new PersonRef(UUID.randomUUID(), "Ada"), "MEMBER",
-            UUID.randomUUID(), false, 2, 50, null, null, Instant.now()));
+            Space.AudienceType.DIASPORA, true, false, false, new PersonRef(UUID.randomUUID(), "Ada"), "MEMBER",
+            UUID.randomUUID(), false, false, 2, 50, null, null, 0, null, Instant.now()));
 
         mvc.perform(post("/api/v1/invites/tok/join").with(asUser(USER)))
             .andExpect(status().isOk())

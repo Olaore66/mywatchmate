@@ -1,7 +1,10 @@
 package com.mywatchmate.watch;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
@@ -23,6 +26,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @RequiredArgsConstructor
 public class SpaceEvents {
 
+    private static final Pattern ROOM_TOPIC =
+        Pattern.compile("^/topic/spaces/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(/.*)?$");
+
     private final SimpMessageSendingOperations broker;
     private final ApplicationEventPublisher internal;
 
@@ -30,9 +36,26 @@ public class SpaceEvents {
         return "/topic/spaces/" + spaceId + "/events";
     }
 
+    /** The room a destination belongs to ({@code /topic/spaces/{id}/...}), if any. */
+    public static Optional<UUID> roomOf(String destination) {
+        if (destination == null) {
+            return Optional.empty();
+        }
+        Matcher room = ROOM_TOPIC.matcher(destination);
+        return room.matches() ? Optional.of(UUID.fromString(room.group(1))) : Optional.empty();
+    }
+
+    /**
+     * Listeners may publish follow-up events (NOW_PLAYING_CHANGED → PLAYBACK_CHANGED); this event's broadcast
+     * is queued before they run, so subscribers hear the cause before its effects.
+     */
     public void publish(UUID spaceId, SpaceEvent.Type type, Object data) {
         SpaceEvent event = new SpaceEvent(type, spaceId, Instant.now(), data);
+        broadcast(spaceId, event);
         internal.publishEvent(event);
+    }
+
+    private void broadcast(UUID spaceId, SpaceEvent event) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override

@@ -24,6 +24,15 @@ class SpaceTest {
     }
 
     @Test
+    void couplesAndFriendsShareTheRemoteByDefaultHostsLeadEverywhereElse() {
+        assertThat(Space.membersControlPlaybackByDefault(Space.AudienceType.COUPLE)).isTrue();
+        assertThat(Space.membersControlPlaybackByDefault(Space.AudienceType.FRIENDS)).isTrue();
+        assertThat(Space.membersControlPlaybackByDefault(Space.AudienceType.DIASPORA)).isFalse();
+        assertThat(Space.membersControlPlaybackByDefault(Space.AudienceType.WORK)).isFalse();
+        assertThat(Space.membersControlPlaybackByDefault(Space.AudienceType.OTHER)).isFalse();
+    }
+
+    @Test
     void rotatingReplacesTheInviteToken() {
         space.rotateInvite("new-token");
         assertThat(space.getInviteToken()).isEqualTo("new-token");

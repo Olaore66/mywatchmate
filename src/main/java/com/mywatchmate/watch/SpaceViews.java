@@ -1,6 +1,8 @@
 package com.mywatchmate.watch;
 
 import com.mywatchmate.identity.User;
+import com.mywatchmate.live.PlaybackService;
+import com.mywatchmate.live.PresenceTracker;
 import com.mywatchmate.watch.dto.ContentResponse;
 import com.mywatchmate.watch.dto.PersonRef;
 import com.mywatchmate.watch.dto.SpaceResponse;
@@ -14,6 +16,8 @@ public class SpaceViews {
 
     private final ParticipantRepository participants;
     private final SpaceProperties props;
+    private final PlaybackService playback;
+    private final PresenceTracker presence;
 
     public SpaceResponse of(SpaceAccess.Membership membership) {
         Space space = membership.space();
@@ -22,9 +26,10 @@ public class SpaceViews {
         User owner = space.getOwner();
         ContentItem playing = space.getCurrentContent();
         return new SpaceResponse(space.getId(), space.getTitle(), space.getDescription(), space.getAudienceType(),
-            space.isAllowGuests(), space.isMembersCanAddContent(), new PersonRef(owner.getId(), owner.getDisplayName()),
-            membership.level().name(), membership.participant().getId(), membership.canAddContent(),
+            space.isAllowGuests(), space.isMembersCanAddContent(), space.isMembersCanControlPlayback(),
+            new PersonRef(owner.getId(), owner.getDisplayName()), membership.level().name(),
+            membership.participant().getId(), membership.canAddContent(), membership.canControlPlayback(),
             memberCount, props.maxMembers(), playing == null ? null : ContentResponse.from(playing),
-            space.getArchivedAt(), space.getCreatedAt());
+            playback.current(space), presence.onlineCount(space.getId()), space.getArchivedAt(), space.getCreatedAt());
     }
 }

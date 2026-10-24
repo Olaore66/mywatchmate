@@ -1,5 +1,6 @@
 package com.mywatchmate.watch.dto;
 
+import com.mywatchmate.live.dto.PlaybackResponse;
 import com.mywatchmate.watch.Space;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
@@ -13,13 +14,17 @@ public record SpaceResponse(
     Space.AudienceType audienceType,
     boolean allowGuests,
     boolean membersCanAddContent,
+    boolean membersCanControlPlayback,
     @Schema(description = "The room owner (user id)") PersonRef owner,
     @Schema(description = "The caller's role here", allowableValues = {"OWNER", "ADMIN", "MEMBER", "GUEST"}) String myRole,
     @Schema(description = "The caller's participant id in this room") UUID myParticipantId,
     @Schema(description = "Whether the caller may add videos / change what's playing") boolean canAddContent,
+    @Schema(description = "Whether the caller may play, pause and seek for everyone") boolean canControlPlayback,
     @Schema(example = "4") long memberCount,
     @Schema(example = "50") int maxMembers,
     @Schema(description = "What everyone is watching; start this player on load", nullable = true) ContentResponse nowPlaying,
+    @Schema(description = "Where that video is right now; line the player up with it") PlaybackResponse playback,
+    @Schema(description = "People with the room open right now", example = "3") int onlineCount,
     @Schema(description = "Set when archived (owners only can still see it)", nullable = true) Instant archivedAt,
     Instant createdAt
 ) {

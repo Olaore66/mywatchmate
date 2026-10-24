@@ -48,6 +48,8 @@ public class SecurityConfig {
                 .requestMatchers(PUBLIC_PATHS).permitAll()
                 // Invite preview is public so the join screen works before sign-in
                 .requestMatchers(HttpMethod.GET, "/api/v1/invites/*").permitAll()
+                // Clock sync for playback; just the time, nothing private
+                .requestMatchers(HttpMethod.GET, "/api/v1/time").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/invites/*/join").hasRole("USER")
                 .requestMatchers("/api/v1/spaces").hasRole("USER")
                 .requestMatchers("/api/v1/spaces/*/reminders").hasRole("USER")

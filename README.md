@@ -10,6 +10,7 @@ Spring Boot 4.1 · Java 21 · PostgreSQL · Flyway. Concept: [watchwithme-idea-c
 | `identity` | Accounts and profile (`/me`) | `users`, `device_tokens` |
 | `watch` | Rooms, members, invites, videos | `spaces`, `participants`, `content_items`, `schedules`, `watch_sessions` |
 | `sessions` | Schedules, sessions, the jobs that start/end them | (uses `schedules`, `watch_sessions`) |
+| `live` | Shared play/pause/seek, server clock, who's online, closing removed members' connections | `playback_states` |
 | `notify` | Reminder emails, device registration | (uses `reminders`, `device_tokens`) |
 | `track` | Accountability | `attendance`, `streaks`, `notes`, `reminders` |
 | `connect` | Chat | `chat_messages` (monthly partitions) |
@@ -107,6 +108,9 @@ keeping their history. WebSocket clients send `Authorization: Bearer <accessToke
 6. Sessions: a host creates a schedule (`POST /spaces/{id}/schedules`, e.g. weekdays 06:00 Africa/Lagos);
    sessions for the next 14 days appear in `GET /spaces/{id}/sessions` and `GET /me/upcoming`. They start
    and end on their own; members get `SESSION_STARTED` / `SESSION_ENDED`. "Watch now" starts one immediately.
+7. Watching together: `GET /time` for the clock offset, line the player up with `playback` from `GET /spaces/{id}`,
+   send presses to `POST /spaces/{id}/playback`, and follow `PLAYBACK_CHANGED`. Recipe in
+   [docs/realtime-events.md](docs/realtime-events.md#watching-together-live-sync).
 
 ### Background jobs
 
@@ -125,7 +129,6 @@ Permissions are in the **Spaces** section of Swagger; live events are in
 
 ## Not built yet
 
-- Play/pause/seek sync between viewers (Phase 4)
 - Push notifications (device tokens are already collected; sending needs Firebase/APNs credentials)
-- Redis fan-out for multiple instances (single-instance in-memory broker for now)
+- Redis fan-out for multiple instances (single-instance in-memory broker and presence for now)
 - AI cue worker and Payaza SDK integration

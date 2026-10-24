@@ -191,7 +191,8 @@ class SpaceControllerTest {
     }
 
     private static SpaceResponse room(String myRole) {
-        return new SpaceResponse(SPACE, "6am Prayer", null, Space.AudienceType.DIASPORA, true, false,
-            new PersonRef(USER, "Ada"), myRole, UUID.randomUUID(), myRole.equals("OWNER"), 1, 50, null, null, Instant.now());
+        boolean host = myRole.equals("OWNER");
+        return new SpaceResponse(SPACE, "6am Prayer", null, Space.AudienceType.DIASPORA, true, false, false,
+            new PersonRef(USER, "Ada"), myRole, UUID.randomUUID(), host, host, 1, 50, null, null, 0, null, Instant.now());
     }
 }

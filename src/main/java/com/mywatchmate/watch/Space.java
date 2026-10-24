@@ -58,6 +58,10 @@ public class Space {
     @Column(nullable = false)
     private boolean membersCanAddContent;
 
+    // When false, only the owner and admins can play, pause and seek for everyone
+    @Column(nullable = false)
+    private boolean membersCanControlPlayback;
+
     // What everyone in the room is watching
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "current_content_id")
@@ -78,6 +82,11 @@ public class Space {
         this.title = title;
         this.inviteToken = inviteToken;
         this.audienceType = audienceType;
+    }
+
+    /** Couples and friends are equals; diaspora, work and other rooms are led by their hosts. */
+    public static boolean membersControlPlaybackByDefault(AudienceType type) {
+        return type == AudienceType.COUPLE || type == AudienceType.FRIENDS;
     }
 
     public boolean isArchived() {

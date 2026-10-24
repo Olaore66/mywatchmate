@@ -12,6 +12,7 @@ public record UpdateSpaceRequest(
     @Schema(description = "Send an empty string to clear it", nullable = true) @Size(max = 2000) String description,
     @Schema(nullable = true) Space.AudienceType audienceType,
     @Schema(nullable = true) Boolean allowGuests,
-    @Schema(nullable = true) Boolean membersCanAddContent
+    @Schema(nullable = true) Boolean membersCanAddContent,
+    @Schema(nullable = true) Boolean membersCanControlPlayback
 ) {
 }

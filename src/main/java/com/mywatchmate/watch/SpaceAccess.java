@@ -2,6 +2,7 @@ package com.mywatchmate.watch;
 
 import com.mywatchmate.auth.AuthPrincipal;
 import com.mywatchmate.common.ApiException;
+import com.mywatchmate.watch.dto.ParticipantResponse;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,6 +32,11 @@ public class SpaceAccess {
 
         public boolean canAddContent() {
             return isOwnerOrAdmin() || (level == Level.MEMBER && space.isMembersCanAddContent());
+        }
+
+        /** Guests never control playback. */
+        public boolean canControlPlayback() {
+            return isOwnerOrAdmin() || (level == Level.MEMBER && space.isMembersCanControlPlayback());
         }
 
         public Membership requireLevel(Level... allowed) {
@@ -71,6 +77,12 @@ public class SpaceAccess {
     @Transactional(readOnly = true)
     public boolean isActiveMember(AuthPrincipal principal, UUID spaceId) {
         return find(principal, spaceId).isPresent();
+    }
+
+    /** The caller's participant row in a room, if they're an active member. For presence (outside requests). */
+    @Transactional(readOnly = true)
+    public Optional<ParticipantResponse> activeParticipant(AuthPrincipal principal, UUID spaceId) {
+        return find(principal, spaceId).map(m -> ParticipantResponse.from(m.participant()));
     }
 
     public static Level levelOf(Participant participant) {

@@ -87,6 +87,22 @@ class SpaceAccessTest {
         }
 
         @Test
+        void presenceLearnsWhoTheSubscriberIs() {
+            Participant bisi = guest(space, "Bisi");
+            when(participants.findById(bisi.getId())).thenReturn(Optional.of(bisi));
+
+            assertThat(access.activeParticipant(AuthPrincipal.guest(bisi.getId(), space.getId()), space.getId()))
+                .hasValueSatisfying(p -> {
+                    assertThat(p.id()).isEqualTo(bisi.getId());
+                    assertThat(p.displayName()).isEqualTo("Bisi");
+                    assertThat(p.guest()).isTrue();
+                });
+            UUID stranger = UUID.randomUUID();
+            when(participants.findBySpaceIdAndUserId(space.getId(), stranger)).thenReturn(Optional.empty());
+            assertThat(access.activeParticipant(AuthPrincipal.user(stranger), space.getId())).isEmpty();
+        }
+
+        @Test
         void someoneWhoLeftIsNoLongerAMember() {
             Participant left = member(space, user("Tunde"), Participant.Role.MEMBER);
             left.leave(Instant.now());
@@ -137,6 +153,19 @@ class SpaceAccessTest {
             space.setMembersCanAddContent(true);
             assertThat(levelMembership(Level.MEMBER).canAddContent()).isTrue();
             assertThat(levelMembership(Level.GUEST).canAddContent()).isFalse();
+        }
+
+        @Test
+        void controllingPlaybackDependsOnTheRoomSettingAndNeverIncludesGuests() {
+            space.setMembersCanControlPlayback(false);
+            assertThat(levelMembership(Level.OWNER).canControlPlayback()).isTrue();
+            assertThat(levelMembership(Level.ADMIN).canControlPlayback()).isTrue();
+            assertThat(levelMembership(Level.MEMBER).canControlPlayback()).isFalse();
+            assertThat(levelMembership(Level.GUEST).canControlPlayback()).isFalse();
+
+            space.setMembersCanControlPlayback(true);
+            assertThat(levelMembership(Level.MEMBER).canControlPlayback()).isTrue();
+            assertThat(levelMembership(Level.GUEST).canControlPlayback()).isFalse();
         }
 
         @Test

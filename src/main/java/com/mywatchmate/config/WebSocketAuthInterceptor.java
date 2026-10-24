@@ -3,10 +3,8 @@ package com.mywatchmate.config;
 import com.mywatchmate.auth.JwtPrincipalConverter;
 import com.mywatchmate.auth.PrincipalAuthentication;
 import com.mywatchmate.watch.SpaceAccess;
+import com.mywatchmate.watch.SpaceEvents;
 import java.security.Principal;
-import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -30,8 +28,6 @@ import org.springframework.stereotype.Component;
 public class WebSocketAuthInterceptor implements ChannelInterceptor {
 
     private static final String BEARER = "Bearer ";
-    private static final Pattern SPACE_TOPIC =
-        Pattern.compile("^/topic/spaces/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(/.*)?$");
 
     private final JwtDecoder jwtDecoder;
     private final JwtPrincipalConverter converter;
@@ -74,7 +70,8 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
         if (destination.startsWith("/user/")) {
             return true;
         }
-        Matcher room = SPACE_TOPIC.matcher(destination);
-        return room.matches() && spaceAccess.isActiveMember(auth.getPrincipal(), UUID.fromString(room.group(1)));
+        return SpaceEvents.roomOf(destination)
+            .map(spaceId -> spaceAccess.isActiveMember(auth.getPrincipal(), spaceId))
+            .orElse(false);
     }
 }

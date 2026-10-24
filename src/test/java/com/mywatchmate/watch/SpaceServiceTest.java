@@ -28,6 +28,7 @@ import com.mywatchmate.watch.SpaceEvent.Type;
 import com.mywatchmate.watch.content.PreparedVideo;
 import com.mywatchmate.watch.content.ResolvedLink;
 import com.mywatchmate.watch.content.VideoMetadata;
+import com.mywatchmate.watch.dto.ContentResponse;
 import com.mywatchmate.watch.dto.CreateSpaceRequest;
 import com.mywatchmate.watch.dto.InviteResponse;
 import com.mywatchmate.watch.dto.SpaceInfo;
@@ -82,7 +83,7 @@ class SpaceServiceTest {
         @Test
         void creatorBecomesOwnerWithSensibleDefaults() {
             service.create(ada.getId(), new CreateSpaceRequest("  6am Prayer  ", "   ", Space.AudienceType.DIASPORA,
-                null, null, null));
+                null, null, null, null));
 
             ArgumentCaptor<Space> savedSpace = ArgumentCaptor.forClass(Space.class);
             verify(spaces).save(savedSpace.capture());
@@ -93,6 +94,7 @@ class SpaceServiceTest {
             assertThat(space.getInviteToken()).isEqualTo("fresh-invite-123");
             assertThat(space.isAllowGuests()).isTrue();
             assertThat(space.isMembersCanAddContent()).isFalse();
+            assertThat(space.isMembersCanControlPlayback()).as("diaspora rooms are led by hosts").isFalse();
             assertThat(space.getCurrentContent()).isNull();
 
             ArgumentCaptor<Participant> savedOwner = ArgumentCaptor.forClass(Participant.class);
@@ -113,7 +115,7 @@ class SpaceServiceTest {
             when(content.save(any(), eq(prepared))).thenReturn(saved);
 
             service.create(ada.getId(), new CreateSpaceRequest("Room", null, Space.AudienceType.FRIENDS,
-                false, true, "https://youtu.be/dQw4w9WgXcQ"));
+                false, true, "https://youtu.be/dQw4w9WgXcQ", null));
 
             InOrder order = inOrder(content, txManager);
             order.verify(content).prepare("https://youtu.be/dQw4w9WgXcQ");
@@ -123,6 +125,19 @@ class SpaceServiceTest {
             assertThat(space.getValue().getCurrentContent()).isSameAs(saved);
             assertThat(space.getValue().isAllowGuests()).isFalse();
             assertThat(space.getValue().isMembersCanAddContent()).isTrue();
+            assertThat(space.getValue().isMembersCanControlPlayback()).as("friends are equals").isTrue();
+            // Starts the room's shared playback
+            verify(events).publish(eq(space.getValue().getId()), eq(Type.NOW_PLAYING_CHANGED), any(ContentResponse.class));
+        }
+
+        @Test
+        void playbackControlCanBeChosenAtCreation() {
+            service.create(ada.getId(), new CreateSpaceRequest("Room", null, Space.AudienceType.COUPLE,
+                null, null, null, false));
+
+            ArgumentCaptor<Space> space = ArgumentCaptor.forClass(Space.class);
+            verify(spaces).save(space.capture());
+            assertThat(space.getValue().isMembersCanControlPlayback()).isFalse();
         }
 
         @Test
@@ -131,7 +146,7 @@ class SpaceServiceTest {
                 .thenThrow(ApiException.unprocessable("UNSUPPORTED_LINK", "nope"));
 
             assertApiError(() -> service.create(ada.getId(), new CreateSpaceRequest("Room", null,
-                Space.AudienceType.FRIENDS, null, null, "https://tiktok.com/x")), HttpStatus.UNPROCESSABLE_CONTENT, "UNSUPPORTED_LINK");
+                Space.AudienceType.FRIENDS, null, null, "https://tiktok.com/x", null)), HttpStatus.UNPROCESSABLE_CONTENT, "UNSUPPORTED_LINK");
             verifyNoInteractions(txManager, spaces, participants);
         }
 
@@ -139,7 +154,7 @@ class SpaceServiceTest {
         void deletedAccountCantCreateRooms() {
             when(users.findById(ada.getId())).thenReturn(Optional.empty());
             assertApiError(() -> service.create(ada.getId(), new CreateSpaceRequest("Room", null,
-                Space.AudienceType.OTHER, null, null, null)), HttpStatus.NOT_FOUND, "USER_NOT_FOUND");
+                Space.AudienceType.OTHER, null, null, null, null)), HttpStatus.NOT_FOUND, "USER_NOT_FOUND");
         }
     }
 
@@ -192,12 +207,13 @@ class SpaceServiceTest {
         void adminEditsOnlyTheFieldsSentAndEveryoneIsTold() {
             space.setDescription("Old");
             service.update(principalOf(admin), space.getId(),
-                new UpdateSpaceRequest(" Morning Devotion ", null, null, false, null));
+                new UpdateSpaceRequest(" Morning Devotion ", null, null, false, null, true));
 
             assertThat(space.getTitle()).isEqualTo("Morning Devotion");
             assertThat(space.getDescription()).isEqualTo("Old");
             assertThat(space.isAllowGuests()).isFalse();
             assertThat(space.getAudienceType()).isEqualTo(Space.AudienceType.DIASPORA);
+            assertThat(space.isMembersCanControlPlayback()).isTrue();
             verify(events).publish(eq(space.getId()), eq(Type.SPACE_UPDATED),
                 argThat(data -> ((SpaceInfo) data).title().equals("Morning Devotion")));
         }
@@ -205,14 +221,14 @@ class SpaceServiceTest {
         @Test
         void emptyDescriptionClearsIt() {
             space.setDescription("Old");
-            service.update(principalOf(owner), space.getId(), new UpdateSpaceRequest(null, "", null, null, null));
+            service.update(principalOf(owner), space.getId(), new UpdateSpaceRequest(null, "", null, null, null, null));
             assertThat(space.getDescription()).isNull();
         }
 
         @Test
         void membersCantEditTheRoom() {
             assertApiError(() -> service.update(principalOf(tunde), space.getId(),
-                new UpdateSpaceRequest("Mine now", null, null, null, null)), HttpStatus.FORBIDDEN, "FORBIDDEN_ROLE");
+                new UpdateSpaceRequest("Mine now", null, null, null, null, null)), HttpStatus.FORBIDDEN, "FORBIDDEN_ROLE");
             assertThat(space.getTitle()).isEqualTo("6am Prayer Room");
             verifyNoInteractions(events);
         }
@@ -221,7 +237,7 @@ class SpaceServiceTest {
         void archivedRoomCantBeEdited() {
             space.archive(Instant.now());
             assertApiError(() -> service.update(principalOf(owner), space.getId(),
-                new UpdateSpaceRequest("x", null, null, null, null)), HttpStatus.CONFLICT, "SPACE_ARCHIVED");
+                new UpdateSpaceRequest("x", null, null, null, null, null)), HttpStatus.CONFLICT, "SPACE_ARCHIVED");
         }
 
         @Test

@@ -75,6 +75,9 @@ class WatchDtoMappingTest {
         assertThat(SpaceInfo.from(space).archived()).isFalse();
         assertThat(SpaceInfo.from(space).membersCanAddContent()).isTrue();
         assertThat(SpaceInfo.from(space).allowGuests()).isFalse();
+        assertThat(SpaceInfo.from(space).membersCanControlPlayback()).isFalse();
+        space.setMembersCanControlPlayback(true);
+        assertThat(SpaceInfo.from(space).membersCanControlPlayback()).isTrue();
 
         space.archive(Instant.now());
         assertThat(SpaceInfo.from(space).archived()).isTrue();

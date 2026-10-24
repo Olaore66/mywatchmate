@@ -28,7 +28,11 @@ client.subscribe(`/topic/spaces/${spaceId}/events`, (frame) => {
 ```
 
 Only **current members** of the room (users or guests) can subscribe. Anyone else gets an ERROR
-frame. After being removed or leaving, stop using the subscription.
+frame.
+
+**Removed or left:** the server closes that person's connections to the room straight away, with
+WebSocket close code **4403** ("No longer in this room"). Leave the room screen and don't
+reconnect to it; if you need the socket for other rooms, reconnect and subscribe to those only.
 
 ## Event envelope
 
@@ -65,6 +69,8 @@ updated the screen from the REST response.
 | `SESSION_STARTED` | A session went live (on its own at its time, or by a host / "watch now") | Session (`status: LIVE`) |
 | `SESSION_ENDED` | A live session finished (video over, 3-hour limit, or a host ended it) | Session |
 | `SESSION_CANCELLED` | A host cancelled a scheduled session | Session |
+| `PLAYBACK_CHANGED` | Someone pressed play/pause/seek, or a new video started (from 0) | Playback |
+| `PRESENCE_CHANGED` | Someone opened or closed the room (first tab in / last tab out) | Presence |
 
 ### Shapes
 
@@ -76,7 +82,7 @@ updated the screen from the REST response.
 **SpaceInfo**
 ```json
 { "id": "1b2c…", "title": "6am Prayer Room", "description": null, "audienceType": "DIASPORA",
-  "allowGuests": true, "membersCanAddContent": false, "archived": false }
+  "allowGuests": true, "membersCanAddContent": false, "membersCanControlPlayback": false, "archived": false }
 ```
 
 **Content** (same as `ContentResponse` in Swagger)
@@ -97,6 +103,24 @@ updated the screen from the REST response.
 ```
 Show times in the viewer's own timezone by converting `scheduledAt` on the device (or use
 `scheduledAtLocal` from the REST endpoints, which is already in the signed-in user's timezone).
+
+**Playback** (same as `PlaybackResponse` in Swagger; see *Watching together* below)
+```json
+{ "contentId": "5c6d…", "status": "PLAYING", "positionMs": 754000, "serverTimeMs": 1793577600000,
+  "durationMs": 600000, "live": false, "version": 42,
+  "updatedBy": { "id": "7a9b…", "displayName": "Tunde" } }
+```
+`status` is `STOPPED` (nothing to play, `contentId` null), `PLAYING` or `PAUSED`. A finished video
+is `PAUSED` with `positionMs` = `durationMs`. `durationMs` is null when unknown (YouTube) or live.
+`updatedBy` is null when the change wasn't a button press (new video, session start).
+
+**Presence** (same as `PresenceResponse` in Swagger)
+```json
+{ "onlineCount": 2,
+  "online": [ { "participantId": "7a9b…", "displayName": "Ada", "guest": false },
+              { "participantId": "8b0c…", "displayName": "Bisi", "guest": true } ] }
+```
+Each person once, in the order they came online, however many tabs or devices they use.
 
 **Schedule** (same as `ScheduleResponse` in Swagger)
 ```json
@@ -120,5 +144,88 @@ On `NOW_PLAYING_CHANGED` (and on opening a room, from `nowPlaying` in `GET /spac
 Show a "Tap to watch together" button when someone enters a room; after that tap, later videos
 can start automatically. Alternative: start muted with an "Unmute" button.
 
-Keeping everyone at the same second (play/pause/seek sync, late joiners) arrives in Phase 4 and
-will be added to this document.
+## Watching together (live sync)
+
+The server keeps **one playback state per room**; nobody's player is in charge. Every player
+lines itself up with that state, so late joiners, reconnects and slow phones all land on the
+same moment.
+
+### 1. Learn the server's clock (once per room visit)
+
+Phone clocks are often seconds off. Call `GET /api/v1/time` (public) 3–5 times and keep the
+fastest round trip:
+
+```js
+async function clockOffset() {
+  let best = { rtt: Infinity, offset: 0 };
+  for (let i = 0; i < 5; i++) {
+    const t0 = Date.now();
+    const { serverTimeMs } = await (await fetch(`${API}/api/v1/time`)).json();
+    const t1 = Date.now();
+    if (t1 - t0 < best.rtt) best = { rtt: t1 - t0, offset: serverTimeMs - (t0 + t1) / 2 };
+  }
+  return best.offset;
+}
+const serverNow = () => Date.now() + offset;
+```
+
+### 2. Where should the player be right now?
+
+```js
+function expectedPositionMs(p) {
+  if (p.status !== "PLAYING") return p.positionMs;
+  const ms = p.positionMs + (serverNow() - p.serverTimeMs);
+  return p.durationMs == null ? ms : Math.min(ms, p.durationMs);
+}
+```
+
+### 3. Apply a state
+
+Sources of state: `playback` in `GET /spaces/{id}` (on opening the room), `GET /spaces/{id}/playback`
+(after reconnecting), and every `PLAYBACK_CHANGED` event.
+
+```js
+let current = null;
+function apply(p) {
+  if (current && p.version < current.version) return;  // an older message arriving late
+  current = p;
+  if (p.status === "STOPPED") return player.stop();
+  if (p.live) return p.status === "PLAYING" ? player.playAtLiveEdge() : player.pause();
+  player.seekTo(expectedPositionMs(p));
+  p.status === "PLAYING" ? player.play() : player.pause();
+}
+```
+
+If `contentId` differs from the video loaded, load `nowPlaying` first (a `NOW_PLAYING_CHANGED`
+always arrives just before the matching `PLAYBACK_CHANGED`).
+
+### 4. Pressing the buttons
+
+Only when `canControlPlayback` is true in `GET /spaces/{id}` (owner and admins always; members when
+the room's `membersCanControlPlayback` is on, which is the default for COUPLE and FRIENDS rooms;
+guests never). Hide or disable the controls otherwise; a viewer pausing their own player is fine
+but won't affect anyone else, and the drift check will pull them back while the room plays.
+
+```http
+POST /api/v1/spaces/{id}/playback
+{ "action": "PLAY" }                       // or "PAUSE"
+{ "action": "SEEK", "positionMs": 754000 } // keeps playing if it was playing
+```
+
+The response is the new state; apply it at once (it has the new `version`), and ignore your own
+`PLAYBACK_CHANGED` echo since it has the same `version`. Errors: `FORBIDDEN_ROLE`,
+`NOTHING_PLAYING`, `LIVE_CANNOT_SEEK`, `POSITION_OUT_OF_RANGE`, `PLAYBACK_RATE_LIMITED`
+(more than 5 presses a second; for a seek bar, send only when the person lets go).
+
+### 5. Stay in sync (drift)
+
+Every 3–5 seconds while `PLAYING`, compare the player's time with `expectedPositionMs(current)`.
+More than **1.5 s** apart → `seekTo` it. Don't correct smaller gaps; it makes playback stutter.
+
+Never pause the room because one person is buffering. They catch up when their video loads.
+
+### 6. Who's watching
+
+`onlineCount` is in `GET /spaces/{id}`, and `GET /spaces/{id}/presence` lists the people. After that,
+`PRESENCE_CHANGED` carries the whole list each time someone opens or closes the room. Someone whose
+phone loses signal drops off within about half a minute, once their heartbeats stop (stompjs sends them every 10 s by default; keep that on).

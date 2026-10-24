@@ -7,6 +7,7 @@ import com.mywatchmate.identity.UserRepository;
 import com.mywatchmate.watch.SpaceAccess.Level;
 import com.mywatchmate.watch.SpaceAccess.Membership;
 import com.mywatchmate.watch.content.PreparedVideo;
+import com.mywatchmate.watch.dto.ContentResponse;
 import com.mywatchmate.watch.dto.CreateSpaceRequest;
 import com.mywatchmate.watch.dto.InviteResponse;
 import com.mywatchmate.watch.dto.SpaceInfo;
@@ -47,12 +48,18 @@ public class SpaceService {
             space.setDescription(blankToNull(request.description()));
             space.setAllowGuests(request.allowGuests() == null || request.allowGuests());
             space.setMembersCanAddContent(Boolean.TRUE.equals(request.membersCanAddContent()));
+            space.setMembersCanControlPlayback(request.membersCanControlPlayback() != null
+                ? request.membersCanControlPlayback()
+                : Space.membersControlPlaybackByDefault(request.audienceType()));
             spaces.save(space);
 
             Participant ownerRow = participants.save(Participant.member(space, owner, Participant.Role.OWNER));
             Membership membership = new Membership(space, ownerRow, Level.OWNER);
             if (video != null) {
-                space.playNow(content.save(membership, video));
+                ContentItem item = content.save(membership, video);
+                space.playNow(item);
+                // Nobody is listening yet; this starts the room's playback (PLAYING from 0)
+                events.publish(space.getId(), SpaceEvent.Type.NOW_PLAYING_CHANGED, ContentResponse.from(item));
             }
             return views.of(membership);
         });
@@ -86,6 +93,9 @@ public class SpaceService {
         }
         if (request.membersCanAddContent() != null) {
             space.setMembersCanAddContent(request.membersCanAddContent());
+        }
+        if (request.membersCanControlPlayback() != null) {
+            space.setMembersCanControlPlayback(request.membersCanControlPlayback());
         }
         events.publish(spaceId, SpaceEvent.Type.SPACE_UPDATED, SpaceInfo.from(space));
         return views.of(membership);

@@ -9,6 +9,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.mywatchmate.identity.User;
+import com.mywatchmate.live.PlaybackService;
+import com.mywatchmate.live.PresenceTracker;
+import com.mywatchmate.live.PlaybackState;
+import com.mywatchmate.live.dto.PlaybackResponse;
 import com.mywatchmate.watch.dto.SpaceResponse;
 import java.time.Instant;
 import java.util.UUID;
@@ -22,6 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class SpaceViewsTest {
 
     @Mock ParticipantRepository participants;
+    @Mock PlaybackService playback;
+    @Mock PresenceTracker presence;
 
     private SpaceViews views;
     private User ada;
@@ -29,7 +35,7 @@ class SpaceViewsTest {
 
     @BeforeEach
     void setUp() {
-        views = new SpaceViews(participants, new SpaceProperties(50, "http://localhost:3000"));
+        views = new SpaceViews(participants, new SpaceProperties(50, "http://localhost:3000"), playback, presence);
         ada = user("Ada");
         space = space(ada);
         space.setDescription("Daily devotion");
@@ -44,6 +50,10 @@ class SpaceViewsTest {
         video.setId(UUID.randomUUID());
         video.setTitle("Morning Prayer");
         space.playNow(video);
+        PlaybackResponse state = new PlaybackResponse(video.getId(), PlaybackState.Status.PLAYING, 754_000,
+            1_793_577_600_000L, null, false, 3, null);
+        when(playback.current(space)).thenReturn(state);
+        when(presence.onlineCount(space.getId())).thenReturn(2);
 
         SpaceResponse response = views.of(membership(owner));
 
@@ -58,6 +68,9 @@ class SpaceViewsTest {
         assertThat(response.memberCount()).isEqualTo(4);
         assertThat(response.maxMembers()).isEqualTo(50);
         assertThat(response.nowPlaying().title()).isEqualTo("Morning Prayer");
+        assertThat(response.canControlPlayback()).isTrue();
+        assertThat(response.playback()).isSameAs(state);
+        assertThat(response.onlineCount()).isEqualTo(2);
         assertThat(response.archivedAt()).isNull();
         assertThat(response.createdAt()).isEqualTo(Instant.parse("2026-10-01T06:00:00Z"));
     }
@@ -68,6 +81,7 @@ class SpaceViewsTest {
 
         assertThat(response.myRole()).isEqualTo("GUEST");
         assertThat(response.canAddContent()).isFalse();
+        assertThat(response.canControlPlayback()).isFalse();
         assertThat(response.nowPlaying()).isNull();
     }
 
@@ -78,5 +92,16 @@ class SpaceViewsTest {
         assertThat(views.of(membership(tunde)).canAddContent()).isFalse();
         space.setMembersCanAddContent(true);
         assertThat(views.of(membership(tunde)).canAddContent()).isTrue();
+    }
+
+    @Test
+    void memberControlsPlaybackOnlyWhenTheRoomAllowsIt() {
+        Participant tunde = member(space, user("Tunde"), Participant.Role.MEMBER);
+
+        assertThat(views.of(membership(tunde)).canControlPlayback()).isFalse();
+        space.setMembersCanControlPlayback(true);
+        SpaceResponse response = views.of(membership(tunde));
+        assertThat(response.canControlPlayback()).isTrue();
+        assertThat(response.membersCanControlPlayback()).isTrue();
     }
 }

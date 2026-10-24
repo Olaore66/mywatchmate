@@ -15,6 +15,9 @@ public record CreateSpaceRequest(
     Boolean membersCanAddContent,
     @Schema(description = "Optional first video; it starts playing for everyone straight away. "
         + "Check it first with POST /content/preview.", example = "https://www.youtube.com/watch?v=dQw4w9WgXcQ", nullable = true)
-    @Size(max = 2048) String videoUrl
+    @Size(max = 2048) String videoUrl,
+    @Schema(description = "Let members (not just owner/admins) play, pause and seek for everyone. "
+        + "Default: true for COUPLE and FRIENDS rooms, false otherwise.", nullable = true)
+    Boolean membersCanControlPlayback
 ) {
 }
