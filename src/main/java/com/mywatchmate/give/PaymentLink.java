@@ -57,8 +57,21 @@ public class PaymentLink {
     @Column(nullable = false)
     private Instant lastSeenAt = Instant.now();
 
+    // Viewers who said "this looks like a scam"; enough of them and it's blocked until reviewed
+    @Column(nullable = false)
+    private int reportCount;
+
     public PaymentLink(String normalizedUrl, Provider provider) {
         this.normalizedUrl = normalizedUrl;
         this.provider = provider;
+    }
+
+    public boolean isBlocked() {
+        return status == Status.BLOCKED;
+    }
+
+    public void block(String reason) {
+        status = Status.BLOCKED;
+        blockedReason = reason;
     }
 }

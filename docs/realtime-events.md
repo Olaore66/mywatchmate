@@ -81,6 +81,9 @@ updated the screen from the REST response.
 | `MEMBER_UNMUTED` | A host unmuted them | `{ "participantId": "…" }` |
 | `TYPING` | Someone is typing (at most every 2 s each; hide after ~4 s without another) | `{ "participantId", "displayName", "emoji": null }` |
 | `REACTION` | A floating reaction | `{ "participantId", "displayName", "emoji": "🙏" }` |
+| `GIVE_PROMPT` | A Give button appeared (AI spotted a QR code, or a host put the link up); replaces any showing | Prompt |
+| `GIVE_PROMPT_CLOSED` | Take the Give card down (host closed it, link blocked or reported) | `{ "promptId": "…" }` |
+| `GIFT_MADE` | Someone completed a gift | `{ "displayName": "Bisi", "anonymous": false }` (displayName null when anonymous); never an amount |
 
 ### Shapes
 
@@ -149,6 +152,13 @@ Private notes never produce events: only their author ever sees them.
 `sessionId` is set when the message was sent during a live session. Deleted messages keep their place
 with `deleted: true` and `body: null`.
 
+**Prompt** (same as `PromptResponse` in Swagger)
+```json
+{ "id": "8f9a…", "sessionId": "9e8d…", "url": "https://pay.payaza.africa/give/stmarks", "provider": "PAYAZA",
+  "merchantName": null, "source": "HOST", "shownAt": "2026-11-02T05:40:00Z", "expiresAt": "2026-11-02T05:45:00Z",
+  "notice": "You're paying the link's owner through Payaza. MyWatchMate never holds your money." }
+```
+
 **Schedule** (same as `ScheduleResponse` in Swagger)
 ```json
 { "id": "4f5a…", "spaceId": "1b2c…", "title": "Morning Devotion",
@@ -170,6 +180,26 @@ On `NOW_PLAYING_CHANGED` (and on opening a room, from `nowPlaying` in `GET /spac
 **Autoplay:** browsers block autoplay with sound until the person has interacted with the page.
 Show a "Tap to watch together" button when someone enters a room; after that tap, later videos
 can start automatically. Alternative: start muted with an "Unmute" button.
+
+## Giving
+
+During a live session a **Give card** can appear (`GIVE_PROMPT`). Someone opening the room late gets it from
+`GET /spaces/{id}/give/prompts/current` (204 when nothing is up). Show it until `expiresAt` or
+`GIVE_PROMPT_CLOSED`, always with its `notice`.
+
+1. Tap **Give** → `POST /spaces/{id}/give/prompts/{promptId}/open` with `{ "anonymous": true|false }`.
+2. Open the returned `checkoutUrl` **without leaving the room**:
+   - **Mobile:** an in-app browser over the video (iOS `SFSafariViewController`, Android Custom Tabs),
+     so the stream keeps playing underneath.
+   - **Web:** a popup window (`window.open`, sized like a checkout); keep the player running.
+3. When the checkout closes (or Payaza's page says paid/failed), report it **once**:
+   `POST /gifts/{giftId}/result` with `{ "status": "COMPLETED" | "FAILED" | "CANCELLED", "amountMinor", "currency",
+   "providerTxnRef" }` (amount in kobo/cents, e.g. 500000 = NGN 5,000). If you can't tell, don't report: after
+   an hour it becomes UNKNOWN.
+4. The room gets `GIFT_MADE`: show a gentle "Bisi gave 🙏" (or "Someone gave 🙏"). There's never an amount.
+
+Results are **self-reported**: Payaza confirms payments to the link's owner, not to MyWatchMate. Offer a
+"Report this link" option on the card (`POST …/prompts/{promptId}/report`); three reports block a link everywhere.
 
 ## Chat
 

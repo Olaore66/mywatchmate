@@ -331,6 +331,42 @@ class RealtimeEventsTests {
     }
 
     @Test
+    void theGivePromptAndThankYousReachTheRoomNeverTheAmount() throws Exception {
+        String ada = register("Ada");
+        String spaceId = post("/api/v1/spaces", ada, "{\"title\":\"Sunday Service\",\"audienceType\":\"DIASPORA\"}").read("$.id");
+        String invite = get("/api/v1/spaces/" + spaceId + "/invite", ada).read("$.inviteToken");
+        String bisi = post("/api/v1/auth/guest", null, "{\"inviteToken\":\"%s\",\"displayName\":\"Bisi\"}"
+            .formatted(invite)).read("$.accessToken");
+        post("/api/v1/spaces/" + spaceId + "/sessions/watch-now", ada, "{}");
+
+        BlockingQueue<Object> bisiHears = new LinkedBlockingQueue<>();
+        connect(bisi, new LinkedBlockingQueue<>()).subscribe(eventsOf(spaceId),
+            collectInto(bisiHears, "GIVE_PROMPT", "GIVE_PROMPT_CLOSED", "GIFT_MADE"));
+        Thread.sleep(300);
+
+        String link = "https://pay.payaza.africa/give/ws-" + UUID.randomUUID();
+        String promptId = post("/api/v1/spaces/" + spaceId + "/give/prompts", ada, "{\"url\":\"" + link + "\"}").read("$.id");
+        DocumentContext prompt = JsonPath.parse(next(bisiHears));
+        assertThat(prompt.read("$.type", String.class)).isEqualTo("GIVE_PROMPT");
+        assertThat(prompt.read("$.data.id", String.class)).isEqualTo(promptId);
+        assertThat(prompt.read("$.data.url", String.class)).isEqualTo(link);
+        assertThat(prompt.read("$.data.notice", String.class)).contains("MyWatchMate never holds your money");
+
+        String giftId = post("/api/v1/spaces/" + spaceId + "/give/prompts/" + promptId + "/open", bisi, "{\"anonymous\":false}")
+            .read("$.giftId");
+        post("/api/v1/gifts/" + giftId + "/result", bisi, "{\"status\":\"COMPLETED\",\"amountMinor\":500000,\"currency\":\"NGN\"}");
+        DocumentContext gave = JsonPath.parse(next(bisiHears));
+        assertThat(gave.read("$.type", String.class)).isEqualTo("GIFT_MADE");
+        assertThat(gave.read("$.data.displayName", String.class)).isEqualTo("Bisi");
+        assertThat(gave.jsonString()).as("never the amount").doesNotContain("500000").doesNotContain("NGN");
+
+        delete("/api/v1/spaces/" + spaceId + "/give/prompts/" + promptId, ada);
+        DocumentContext closed = JsonPath.parse(next(bisiHears));
+        assertThat(closed.read("$.type", String.class)).isEqualTo("GIVE_PROMPT_CLOSED");
+        assertThat(closed.read("$.data.promptId", String.class)).isEqualTo(promptId);
+    }
+
+    @Test
     void outsidersAreCutOffWhenTheyTryToListenToARoom() throws Exception {
         String ada = register("Ada");
         String spaceId = post("/api/v1/spaces", ada, "{\"title\":\"Private\",\"audienceType\":\"FRIENDS\"}").read("$.id");

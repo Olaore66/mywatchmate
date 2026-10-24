@@ -14,7 +14,7 @@ Spring Boot 4.1 · Java 21 · PostgreSQL · Flyway. Concept: [watchwithme-idea-c
 | `notify` | Reminder emails, device registration | (uses `reminders`, `device_tokens`) |
 | `track` | Attendance (from presence), streaks, notes | `attendance`, `streaks`, `notes` (+ `reminders`, used by `notify`) |
 | `connect` | Room chat (kept forever), mutes, typing and reactions | `chat_messages` (monthly partitions) |
-| `give` | QR cue → in-room payment | `payment_links`, `space_blocked_links`, `cue_detections`, `gifts` |
+| `give` | Give prompts (host or AI cue) → in-room Payaza checkout, gifts, blocks, scam reports | `payment_links`, `space_blocked_links`, `cue_detections`, `gifts`, `payment_link_reports` |
 | `config` | Security, JWT, Swagger, WebSocket (STOMP at `/ws`), clock, background jobs switch | |
 | `common` | Error format (problem+json), shared helpers | |
 
@@ -116,6 +116,10 @@ keeping their history. WebSocket clients send `Authorization: Bearer <accessToke
    `GET /me/attendance`; hosts get `GET /spaces/{id}/attendance`. Notes: `/spaces/{id}/notes` (private or shared).
 9. Chat: `GET/POST /spaces/{id}/chat` (send over REST, receive `CHAT_MESSAGE` live), typing and reactions over
    the WebSocket, `unreadCount` badges, hosts mute with `POST /spaces/{id}/participants/{pid}/mute`.
+10. Giving: a host puts up the room's Payaza link (`POST /spaces/{id}/give/prompts`) during a live session, or the
+    AI does (Phase 8, via `POST /internal/cues`); viewers open the checkout in-room and report the result.
+    Settings: `PAYAZA_HOSTS` (accepted Payaza link domains), `INTERNAL_CUE_TOKEN` (the AI worker's token;
+    empty turns `/internal` off).
 
 ### Background jobs
 
@@ -125,6 +129,7 @@ keeping their history. WebSocket clients send `Authorization: Bearer <accessToke
 | `SessionLifecycleJob` | 30 s | Starts sessions at their time; ends them when the video is over (or after 3 h) |
 | `ReminderDispatchJob` | 30 s | Sends due reminder emails (printed to the log when `MAIL_HOST` isn't set) |
 | `AttendanceJob` | 30 s | Adds watch time for everyone with a live session's room open |
+| `GiftExpiryJob` | 10 min | Gifts opened over an hour ago with no result become UNKNOWN |
 | `ChatPartitionJob` | day | Creates next months' chat tables |
 
 All are safe to run on several servers at once (row locking, unique constraints). Tests switch them off
@@ -138,4 +143,5 @@ Permissions are in the **Spaces** section of Swagger; live events are in
 - Voice/video calls in rooms (Phase 6b, waiting on the LiveKit decision and keys)
 - Push notifications (device tokens are already collected; sending needs Firebase/APNs credentials)
 - Redis fan-out for multiple instances (single-instance in-memory broker and presence for now)
-- AI cue worker and Payaza SDK integration
+- AI cue worker (Phase 8: spots giving QR codes in the stream and calls `POST /internal/cues`)
+- Payaza's exact link domains (placeholder `payaza.africa` in `PAYAZA_HOSTS` until Payaza confirms)

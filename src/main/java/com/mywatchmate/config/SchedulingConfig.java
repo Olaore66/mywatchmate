@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * Background jobs (session generation/lifecycle, reminders, attendance, chat partitions).
+ * Background jobs (session generation/lifecycle, reminders, attendance, gift expiry, chat partitions).
  * Off in tests (mywatchmate.jobs.enabled=false), which call the jobs directly instead.
  */
 @Configuration

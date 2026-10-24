@@ -73,6 +73,20 @@ mywatchmate:
     counted-cap: 20m
     # Most watch time credited between two attendance checks (they run every 30 s)
     tick-cap: 60s
+  give:
+    # Where Payaza payment links live (a link must be on one of these, or a subdomain).
+    # ASSUMPTION until Payaza confirms their link format; it's settings, not code.
+    payaza-hosts: ${PAYAZA_HOSTS:payaza.africa}
+    # The AI seeing the same link again within this, in the same session, doesn't re-prompt
+    reprompt-window: 10m
+    # A Give prompt stays up this long unless a host closes it
+    prompt-lifetime: 5m
+    # "Looks like a scam" reports from different people that block a link everywhere until reviewed
+    report-threshold: 3
+    # An opened gift with no result reported after this becomes UNKNOWN
+    gift-expiry: 1h
+    # The AI worker's X-Service-Token for /api/v1/internal/**; empty turns those endpoints off
+    internal-token: ${INTERNAL_CUE_TOKEN:}
   mail:
     # No MAIL_HOST: reminder emails are printed to the log instead of sent
     host: ${MAIL_HOST:}

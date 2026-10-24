@@ -77,6 +77,9 @@ public class Gift {
 
     private Instant completedAt;
 
+    // When the viewer's app reported the result
+    private Instant reportedAt;
+
     public Gift(CueDetection detection, WatchSession session, Participant participant,
                 PaymentLink paymentLink, boolean anonymous) {
         this.detection = detection;
@@ -84,5 +87,19 @@ public class Gift {
         this.participant = participant;
         this.paymentLink = paymentLink;
         this.anonymous = anonymous;
+    }
+
+    /** A result can be reported once; a late one is still accepted after the gift went UNKNOWN. */
+    public boolean awaitsResult() {
+        return status == Status.OPENED || (status == Status.UNKNOWN && reportedAt == null);
+    }
+
+    public void report(Status result, Long amountMinor, String currency, String providerTxnRef, Instant now) {
+        this.status = result;
+        this.amountMinor = amountMinor;
+        this.currency = currency;
+        this.providerTxnRef = providerTxnRef;
+        this.reportedAt = now;
+        this.completedAt = result == Status.COMPLETED ? now : null;
     }
 }
