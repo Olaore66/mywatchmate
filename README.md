@@ -12,6 +12,7 @@ Spring Boot 4.1 · Java 21 · PostgreSQL · Flyway. Concept: [watchwithme-idea-c
 | `sessions` | Schedules, sessions, the jobs that start/end them | (uses `schedules`, `watch_sessions`) |
 | `live` | Shared play/pause/seek, server clock, who's online, closing removed members' connections | `playback_states` |
 | `notify` | Reminder emails, device registration | (uses `reminders`, `device_tokens`) |
+| `invite` | Email invitations (queued, sent by a job, marked joined) | `space_invitations` |
 | `track` | Attendance (from presence), streaks, notes | `attendance`, `streaks`, `notes` (+ `reminders`, used by `notify`) |
 | `connect` | Room chat (kept forever), mutes, typing and reactions | `chat_messages` (monthly partitions) |
 | `give` | Give prompts (host or AI cue) → in-room Payaza checkout, gifts, blocks, scam reports | `payment_links`, `space_blocked_links`, `cue_detections`, `gifts`, `payment_link_reports` |
@@ -98,7 +99,9 @@ keeping their history. WebSocket clients send `Authorization: Bearer <accessToke
 ### Rooms in one minute
 
 1. `POST /spaces` (optionally with `videoUrl`) → the creator is OWNER; the video plays at once.
-2. `GET /spaces/{id}/invite` → share `inviteUrl` (`<FRONTEND_URL>/join/<token>`).
+2. `GET /spaces/{id}/invite` → share `inviteUrl` (`<FRONTEND_URL>/join/<token>`), or let us email it:
+   `POST /spaces/{id}/invites/email` with `{ "emails": [...], "customMessage": "..." }` (owner/admins; call it right
+   after `POST /spaces` on Create Space). `GET` the same path lists who was invited and who joined.
 3. Join screen: `GET /invites/{token}` (no sign-in) → then `POST /invites/{token}/join` (user)
    or `POST /auth/guest` (guest).
 4. In the room: `GET /spaces/{id}` → start the `nowPlaying` player; subscribe to
@@ -128,6 +131,7 @@ keeping their history. WebSocket clients send `Authorization: Bearer <accessToke
 | `SessionGeneratorJob` | hour | Keeps 14 days of sessions planned for every active schedule |
 | `SessionLifecycleJob` | 30 s | Starts sessions at their time; ends them when the video is over (or after 3 h) |
 | `ReminderDispatchJob` | 30 s | Sends due reminder emails (printed to the log when `MAIL_HOST` isn't set) |
+| `InviteDispatchJob` | 30 s | Sends queued invitation emails; retries 3 times, then FAILED |
 | `AttendanceJob` | 30 s | Adds watch time for everyone with a live session's room open |
 | `GiftExpiryJob` | 10 min | Gifts opened over an hour ago with no result become UNKNOWN |
 | `ChatPartitionJob` | day | Creates next months' chat tables |

@@ -73,6 +73,16 @@ mywatchmate:
     counted-cap: 20m
     # Most watch time credited between two attendance checks (they run every 30 s)
     tick-cap: 60s
+  invites:
+    # Email invitations: addresses per request, and per room per day (we send to whatever is typed)
+    max-per-request: 20
+    max-per-day: 100
+    # Shown as pending this long; the room's link itself keeps working
+    lifetime: 14d
+    resend-cooldown: 10m
+    # Send attempts before an invitation is FAILED, and the wait between them (times the attempts so far)
+    max-attempts: 3
+    retry-delay: 1m
   give:
     # Where Payaza payment links live (a link must be on one of these, or a subdomain).
     # ASSUMPTION until Payaza confirms their link format; it's settings, not code.
@@ -95,7 +105,7 @@ mywatchmate:
     password: ${MAIL_PASSWORD:}
     from: ${MAIL_FROM:MyWatchMate <no-reply@mywatchmate.com>}
   jobs:
-    # Background jobs (sessions, reminders, attendance, chat partitions); tests turn this off
+    # Background jobs (sessions, reminders, invitations, attendance, chat partitions); tests turn this off
     enabled: true
 
 springdoc:
