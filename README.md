@@ -14,7 +14,7 @@ Spring Boot 4.1 · Java 21 · PostgreSQL · Flyway. Concept: [watchwithme-idea-c
 | `notify` | Reminder emails, device registration | (uses `reminders`, `device_tokens`) |
 | `invite` | Email invitations (queued, sent by a job, marked joined) | `space_invitations` |
 | `track` | Attendance (from presence), streaks, notes | `attendance`, `streaks`, `notes` (+ `reminders`, used by `notify`) |
-| `connect` | Room chat (kept forever), mutes, typing and reactions | `chat_messages` (monthly partitions) |
+| `connect` | Room chat (kept forever), mutes, typing and reactions; video calls through LiveKit (`connect.call`) | `chat_messages` (monthly partitions) |
 | `give` | Give prompts (host or AI cue) → in-room Payaza checkout, gifts, blocks, scam reports | `payment_links`, `space_blocked_links`, `cue_detections`, `gifts`, `payment_link_reports` |
 | `config` | Security, JWT, Swagger, WebSocket (STOMP at `/ws`), clock, background jobs switch | |
 | `common` | Error format (problem+json), shared helpers | |
@@ -119,7 +119,10 @@ keeping their history. WebSocket clients send `Authorization: Bearer <accessToke
    `GET /me/attendance`; hosts get `GET /spaces/{id}/attendance`. Notes: `/spaces/{id}/notes` (private or shared).
 9. Chat: `GET/POST /spaces/{id}/chat` (send over REST, receive `CHAT_MESSAGE` live), typing and reactions over
    the WebSocket, `unreadCount` badges, hosts mute with `POST /spaces/{id}/participants/{pid}/mute`.
-10. Giving: a host puts up the room's Payaza link (`POST /spaces/{id}/give/prompts`) during a live session, or the
+10. Video calls: `POST /spaces/{id}/call/join` → `{ url, token }` for the LiveKit SDK; `GET /spaces/{id}/call` and
+    `CALL_UPDATED` for who's on. Settings: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (empty: calls off).
+    LiveKit's webhook goes to `POST /api/v1/webhooks/livekit` (signature-checked).
+11. Giving: a host puts up the room's Payaza link (`POST /spaces/{id}/give/prompts`) during a live session, or the
     AI does (Phase 8, via `POST /internal/cues`); viewers open the checkout in-room and report the result.
     Settings: `PAYAZA_HOSTS` (accepted Payaza link domains), `INTERNAL_CUE_TOKEN` (the AI worker's token;
     empty turns `/internal` off).
@@ -144,7 +147,6 @@ Permissions are in the **Spaces** section of Swagger; live events are in
 
 ## Not built yet
 
-- Voice/video calls in rooms (Phase 6b, waiting on the LiveKit decision and keys)
 - Push notifications (device tokens are already collected; sending needs Firebase/APNs credentials)
 - Redis fan-out for multiple instances (single-instance in-memory broker and presence for now)
 - AI cue worker (Phase 8: spots giving QR codes in the stream and calls `POST /internal/cues`)

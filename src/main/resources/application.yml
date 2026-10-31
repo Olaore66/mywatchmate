@@ -83,6 +83,13 @@ mywatchmate:
     # Send attempts before an invitation is FAILED, and the wait between them (times the attempts so far)
     max-attempts: 3
     retry-delay: 1m
+  livekit:
+    # Video calls. All three come from Parameter Store on staging; empty turns calls off (503)
+    url: ${LIVEKIT_URL:}
+    api-key: ${LIVEKIT_API_KEY:}
+    api-secret: ${LIVEKIT_API_SECRET:}
+    # A join token can be used to connect for this long (the call itself can last as long as needed)
+    token-ttl: 10m
   give:
     # Where Payaza payment links live (a link must be on one of these, or a subdomain).
     # ASSUMPTION until Payaza confirms their link format; it's settings, not code.

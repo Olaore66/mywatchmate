@@ -83,6 +83,7 @@ updated the screen from the REST response.
 | `REACTION` | A floating reaction | `{ "participantId", "displayName", "emoji": "🙏" }` |
 | `GIVE_PROMPT` | A Give button appeared (AI spotted a QR code, or a host put the link up); replaces any showing | Prompt |
 | `GIVE_PROMPT_CLOSED` | Take the Give card down (host closed it, link blocked or reported) | `{ "promptId": "…" }` |
+| `CALL_UPDATED` | Someone joined or left the room's video call, or turned camera/screen share on or off | `{ "count": 2, "participants": [ { "participantId", "displayName", "joinedAt", "camera", "microphone", "screenSharing" } ] }` |
 | `GIFT_MADE` | Someone completed a gift | `{ "displayName": "Bisi", "anonymous": false }` (displayName null when anonymous); never an amount |
 
 ### Shapes
@@ -180,6 +181,15 @@ On `NOW_PLAYING_CHANGED` (and on opening a room, from `nowPlaying` in `GET /spac
 **Autoplay:** browsers block autoplay with sound until the person has interacted with the page.
 Show a "Tap to watch together" button when someone enters a room; after that tap, later videos
 can start automatically. Alternative: start muted with an "Unmute" button.
+
+## Video calls (LiveKit)
+
+Camera and microphone go through **LiveKit**, not our WebSocket. `POST /api/v1/spaces/{id}/call/join` returns
+`{ url, token }`; connect with the LiveKit SDK (`livekit-client`, or `@livekit/components-react` for ready-made
+video tiles) and publish the camera/mic. Each person's LiveKit identity is their `participantId` in the space,
+so tiles can be matched to members. `CALL_UPDATED` (here) says who's in the call, for "3 on camera" in the room
+UI; inside the call itself, the SDK's own events are faster. Someone removed from the room is disconnected
+from its call at once.
 
 ## Giving
 

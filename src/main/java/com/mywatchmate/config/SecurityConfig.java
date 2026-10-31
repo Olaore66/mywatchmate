@@ -2,6 +2,7 @@ package com.mywatchmate.config;
 
 import com.mywatchmate.auth.JwtPrincipalConverter;
 import com.mywatchmate.common.ProblemResponses;
+import com.mywatchmate.connect.call.LiveKitWebhookController;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -13,6 +14,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -22,7 +25,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * Stateless API secured by our own JWTs. Public: sign-up/in, token refresh, guest join,
- * health, Swagger, and the WebSocket handshake (STOMP CONNECT is authenticated separately).
+ * health, Swagger, the WebSocket handshake (STOMP CONNECT is authenticated separately), and webhooks /
+ * internal endpoints that check their own signatures.
  */
 @Configuration
 public class SecurityConfig {
@@ -52,6 +56,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/time").permitAll()
                 // Our own services (AI worker): checked against a service token in the controller, not a user token
                 .requestMatchers("/api/v1/internal/**").permitAll()
+                // LiveKit's webhook: checked against LiveKit's signature in the controller
+                .requestMatchers(HttpMethod.POST, LiveKitWebhookController.PATH).permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/invites/*/join").hasRole("USER")
                 .requestMatchers("/api/v1/spaces").hasRole("USER")
                 .requestMatchers("/api/v1/spaces/*/reminders").hasRole("USER")
@@ -60,6 +66,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/me/**", "/api/v1/me").hasRole("USER")
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth -> oauth
+                .bearerTokenResolver(userTokens())
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtConverter))
                 .authenticationEntryPoint(unauthenticated())
                 .accessDeniedHandler(forbidden()))
@@ -85,6 +92,15 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cors);
         return source;
+    }
+
+    /**
+     * User access tokens, from the Authorization header. Not on LiveKit's webhook: its Authorization header is
+     * LiveKit's own signed token, which must reach the controller instead of failing as a bad login.
+     */
+    private static BearerTokenResolver userTokens() {
+        DefaultBearerTokenResolver users = new DefaultBearerTokenResolver();
+        return request -> LiveKitWebhookController.PATH.equals(request.getRequestURI()) ? null : users.resolve(request);
     }
 
     private static AuthenticationEntryPoint unauthenticated() {
