@@ -56,6 +56,7 @@ class AuthServiceTest {
     @Mock TokenService tokens;
     @Mock PasswordEncoder passwordEncoder;
     @Mock StreakService streaks;
+    @Mock AccountLinks links;
 
     private final JwtProperties props =
         new JwtProperties("x".repeat(32), "mywatchmate", Duration.ofMinutes(15), Duration.ofDays(30));
@@ -73,7 +74,7 @@ class AuthServiceTest {
         lenient().when(tokens.accessTokenSeconds()).thenReturn(900L);
         lenient().when(users.saveAndFlush(any(User.class))).thenAnswer(i -> withId(i.<User>getArgument(0)));
 
-        service = new AuthService(users, refreshTokens, participants, membership, tokens, passwordEncoder, props, streaks);
+        service = new AuthService(users, refreshTokens, participants, membership, tokens, passwordEncoder, props, streaks, links);
         service.init();
     }
 
@@ -406,6 +407,7 @@ class AuthServiceTest {
             assertThat(response.user().email()).isEqualTo("bisi@example.com");
             // Their guest attendance now counts towards a streak
             verify(streaks).recompute(created.getId());
+            verify(links).sendVerification(created);
         }
 
         @Test

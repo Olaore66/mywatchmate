@@ -39,6 +39,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtProperties props;
     private final StreakService streaks;
+    private final AccountLinks links;
 
     // Checked against when the email is unknown, so "no such user" takes as long as "wrong password"
     private String dummyHash;
@@ -151,10 +152,12 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setTimezone(Timezones.normalize(request.timezone()));
         try {
-            return users.saveAndFlush(user);
+            user = users.saveAndFlush(user);
         } catch (DataIntegrityViolationException e) {
             throw emailTaken(); // lost a race with a simultaneous sign-up
         }
+        links.sendVerification(user);
+        return user;
     }
 
     private GuestTokenResponse guestTokens(Participant guest, String deviceToken) {

@@ -92,6 +92,10 @@ Every endpoint is under `/api/v1`. Errors are `application/problem+json` with a 
 | User | `POST /auth/register` or `/auth/login` | `accessToken` (15 min) in memory, `refreshToken` (30 days) in secure storage | `POST /auth/refresh` → **replace both tokens**; refresh tokens are single use |
 | Guest | `POST /auth/guest` with an invite token | `accessToken`, `deviceToken` (long-lived) | `POST /auth/guest/refresh` with the device token |
 
+Forgotten password: `POST /auth/password/forgot` emails a one-time link to `<FRONTEND_URL>/reset-password?token=…`,
+then `POST /auth/password/reset`. Sign-up and guest upgrade email a link to `<FRONTEND_URL>/verify-email?token=…`,
+then `POST /auth/email/verify` (`emailVerified` is on `/me`; unconfirmed accounts still work).
+
 Re-using an old refresh token signs that login out everywhere (`REFRESH_TOKEN_REUSED`) — it means
 the token was probably copied. A guest becomes a user with `POST /auth/upgrade` (guest token),
 keeping their history. WebSocket clients send `Authorization: Bearer <accessToken>` on the STOMP CONNECT frame.

@@ -42,6 +42,9 @@ public class User {
     @Column(nullable = false)
     private boolean emailReminders = true;
 
+    // When they proved this address is theirs; null until then
+    private Instant emailVerifiedAt;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -49,6 +52,17 @@ public class User {
     @UpdateTimestamp
     @Column(nullable = false)
     private Instant updatedAt;
+
+    public boolean isEmailVerified() {
+        return emailVerifiedAt != null;
+    }
+
+    /** Keeps the first time. */
+    public void markEmailVerified(Instant now) {
+        if (emailVerifiedAt == null) {
+            emailVerifiedAt = now;
+        }
+    }
 
     public User(String email, String displayName) {
         this.email = email;
