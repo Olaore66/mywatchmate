@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.mywatchmate.cluster.RealtimeBroadcast;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -17,14 +18,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class SpaceEventsTest {
 
-    @Mock SimpMessageSendingOperations broker;
+    @Mock RealtimeBroadcast broker;
     @Mock ApplicationEventPublisher internal;
 
     private final UUID spaceId = UUID.randomUUID();
@@ -41,7 +41,7 @@ class SpaceEventsTest {
         new SpaceEvents(broker, internal).publish(spaceId, SpaceEvent.Type.MEMBER_LEFT, Map.of("id", "x"));
 
         ArgumentCaptor<Object> sent = ArgumentCaptor.forClass(Object.class);
-        verify(broker).convertAndSend(eq("/topic/spaces/" + spaceId + "/events"), sent.capture());
+        verify(broker).send(eq("/topic/spaces/" + spaceId + "/events"), sent.capture());
         SpaceEvent event = (SpaceEvent) sent.getValue();
         assertThat(event.type()).isEqualTo(SpaceEvent.Type.MEMBER_LEFT);
         assertThat(event.spaceId()).isEqualTo(spaceId);
@@ -54,10 +54,10 @@ class SpaceEventsTest {
         TransactionSynchronizationManager.initSynchronization();
 
         new SpaceEvents(broker, internal).publish(spaceId, SpaceEvent.Type.MEMBER_JOINED, null);
-        verify(broker, never()).convertAndSend(any(String.class), any(Object.class));
+        verify(broker, never()).send(any(String.class), any(Object.class));
 
         TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
-        verify(broker).convertAndSend(eq(SpaceEvents.topic(spaceId)), any(SpaceEvent.class));
+        verify(broker).send(eq(SpaceEvents.topic(spaceId)), any(SpaceEvent.class));
     }
 
     @Test
@@ -69,7 +69,7 @@ class SpaceEventsTest {
         ArgumentCaptor<Object> heard = ArgumentCaptor.forClass(Object.class);
         verify(internal).publishEvent(heard.capture());
         assertThat(((SpaceEvent) heard.getValue()).type()).isEqualTo(SpaceEvent.Type.MEMBER_JOINED);
-        verify(broker, never()).convertAndSend(any(String.class), any(Object.class));
+        verify(broker, never()).send(any(String.class), any(Object.class));
     }
 
     @Test
@@ -88,7 +88,7 @@ class SpaceEventsTest {
         TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
 
         ArgumentCaptor<Object> sent = ArgumentCaptor.forClass(Object.class);
-        verify(broker, times(2)).convertAndSend(eq(SpaceEvents.topic(spaceId)), sent.capture());
+        verify(broker, times(2)).send(eq(SpaceEvents.topic(spaceId)), sent.capture());
         assertThat(sent.getAllValues()).extracting(e -> ((SpaceEvent) e).type())
             .containsExactly(SpaceEvent.Type.NOW_PLAYING_CHANGED, SpaceEvent.Type.PLAYBACK_CHANGED);
     }
@@ -110,6 +110,6 @@ class SpaceEventsTest {
         TransactionSynchronizationManager.getSynchronizations()
             .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
 
-        verify(broker, never()).convertAndSend(any(String.class), any(Object.class));
+        verify(broker, never()).send(any(String.class), any(Object.class));
     }
 }

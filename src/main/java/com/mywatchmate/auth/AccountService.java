@@ -1,7 +1,8 @@
 package com.mywatchmate.auth;
 
 import com.mywatchmate.common.ApiException;
-import com.mywatchmate.common.SlidingWindowLimiter;
+import com.mywatchmate.common.RateLimiter;
+import com.mywatchmate.common.RateLimiters;
 import com.mywatchmate.identity.User;
 import com.mywatchmate.identity.UserRepository;
 import java.time.Clock;
@@ -33,13 +34,13 @@ public class AccountService {
     private final TokenService tokens;
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
-    private final SlidingWindowLimiter resetEmails;
-    private final SlidingWindowLimiter verifyEmails;
+    private final RateLimiter resetEmails;
+    private final RateLimiter verifyEmails;
 
     @Autowired
     public AccountService(UserRepository users, AccountTokenRepository accountTokens, RefreshTokenRepository refreshTokens,
                           AccountLinks links, AuthService auth, TokenService tokens, PasswordEncoder passwordEncoder,
-                          Clock clock) {
+                          Clock clock, RateLimiters limits) {
         this.users = users;
         this.accountTokens = accountTokens;
         this.refreshTokens = refreshTokens;
@@ -48,8 +49,8 @@ public class AccountService {
         this.tokens = tokens;
         this.passwordEncoder = passwordEncoder;
         this.clock = clock;
-        this.resetEmails = new SlidingWindowLimiter(clock, MAX_EMAILS_PER_HOUR, Duration.ofHours(1), 10_000);
-        this.verifyEmails = new SlidingWindowLimiter(clock, MAX_EMAILS_PER_HOUR, Duration.ofHours(1), 10_000);
+        this.resetEmails = limits.limiter("password-reset-email", MAX_EMAILS_PER_HOUR, Duration.ofHours(1));
+        this.verifyEmails = limits.limiter("verify-email", MAX_EMAILS_PER_HOUR, Duration.ofHours(1));
     }
 
     /** Emails a reset link if the account exists. Unknown addresses and too many requests are silently ignored. */

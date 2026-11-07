@@ -1,7 +1,10 @@
 package com.mywatchmate.config;
 
+import com.mywatchmate.abuse.AbuseProperties;
+import com.mywatchmate.abuse.RequestGuard;
 import com.mywatchmate.auth.JwtPrincipalConverter;
 import com.mywatchmate.common.ProblemResponses;
+import com.mywatchmate.common.RateLimiters;
 import com.mywatchmate.connect.call.LiveKitWebhookController;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +25,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
 
 /**
  * Stateless API secured by our own JWTs. Public: sign-up/in, token refresh, guest join,
@@ -39,12 +43,16 @@ public class SecurityConfig {
 
     private static final String[] PUBLIC_PATHS = {
         "/actuator/health/**", "/actuator/info", "/ws/**",
-        "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
+        "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", DocsController.PATH
     };
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtPrincipalConverter jwtConverter) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtPrincipalConverter jwtConverter, AbuseProperties abuse,
+                                            RateLimiters limits) throws Exception {
         http
+            // Per-IP limits on sign-in, sign-up, guest join, emails and the WebSocket handshake. After CORS, so
+            // browsers can read the 429; before authentication, so floods cost no token checks or hashing
+            .addFilterAfter(new RequestGuard(abuse, limits), CorsFilter.class)
             .csrf(csrf -> csrf.disable())
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -65,6 +73,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/upgrade").hasRole("GUEST")
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout", "/api/v1/auth/email/resend").hasRole("USER")
                 .requestMatchers("/api/v1/me/**", "/api/v1/me").hasRole("USER")
+                // Staff screens: signed-in users here; the staff role itself is checked in the database on every call
+                .requestMatchers("/api/v1/admin/**").hasRole("USER")
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth -> oauth
                 .bearerTokenResolver(userTokens())
@@ -89,6 +99,8 @@ public class SecurityConfig {
         cors.setAllowedOriginPatterns(origins);
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cors.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // So the app can read how long to wait after a 429
+        cors.setExposedHeaders(List.of("Retry-After"));
         cors.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cors);

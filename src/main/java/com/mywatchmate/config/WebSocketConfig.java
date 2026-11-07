@@ -16,8 +16,9 @@ import org.springframework.web.socket.config.annotation.WebSocketTransportRegist
 /**
  * STOMP over WebSocket for playback sync, chat and the Give button.
  * Clients send to /app/**, subscribe to /topic/spaces/{id}/**.
- * The in-memory broker only works on a single instance; swap it for a broker
- * relay (RabbitMQ) or Redis fan-out before running more than one.
+ * Each copy of the app has its own in-memory broker for the clients connected to it. With several copies
+ * (mywatchmate.cluster.mode=REDIS), room events reach every copy through Redis first
+ * ({@link com.mywatchmate.cluster.RealtimeBroadcast}), so clients see no difference.
  */
 @Configuration
 @EnableWebSocketMessageBroker

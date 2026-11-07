@@ -1,5 +1,6 @@
 package com.mywatchmate.watch;
 
+import com.mywatchmate.cluster.RealtimeBroadcast;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -7,7 +8,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -29,7 +29,7 @@ public class SpaceEvents {
     private static final Pattern ROOM_TOPIC =
         Pattern.compile("^/topic/spaces/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(/.*)?$");
 
-    private final SimpMessageSendingOperations broker;
+    private final RealtimeBroadcast broker;
     private final ApplicationEventPublisher internal;
 
     public static String topic(UUID spaceId) {
@@ -60,11 +60,11 @@ public class SpaceEvents {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    broker.convertAndSend(topic(spaceId), event);
+                    broker.send(topic(spaceId), event);
                 }
             });
         } else {
-            broker.convertAndSend(topic(spaceId), event);
+            broker.send(topic(spaceId), event);
         }
     }
 }

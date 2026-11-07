@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -40,7 +39,7 @@ public class ReminderDispatchJob {
     record Outgoing(UUID reminderId, EmailMessage message) {
     }
 
-    @Scheduled(initialDelayString = "PT20S", fixedDelayString = "${mywatchmate.reminders.dispatch-interval:PT30S}")
+    /** Timer and single-copy lock: {@link com.mywatchmate.config.ScheduledJobs}. */
     public int run() {
         List<Outgoing> due = tx.execute(status -> claimDue());
         int sent = 0;

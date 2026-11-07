@@ -2,7 +2,7 @@ package com.mywatchmate.track;
 
 import com.mywatchmate.auth.AuthPrincipal;
 import com.mywatchmate.common.ApiException;
-import com.mywatchmate.live.PresenceTracker;
+import com.mywatchmate.live.RoomPresence;
 import com.mywatchmate.live.dto.OnlineViewer;
 import com.mywatchmate.sessions.dto.SessionResponse;
 import com.mywatchmate.track.dto.AttendanceFinalised;
@@ -52,7 +52,7 @@ public class AttendanceService {
     private final AttendanceRepository attendance;
     private final WatchSessionRepository sessions;
     private final ParticipantRepository participants;
-    private final PresenceTracker presence;
+    private final RoomPresence presence;
     private final SpaceAccess access;
     private final SpaceEvents events;
     private final StreakService streaks;

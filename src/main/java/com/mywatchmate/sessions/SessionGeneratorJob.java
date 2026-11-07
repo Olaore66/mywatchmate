@@ -7,7 +7,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -25,7 +24,7 @@ public class SessionGeneratorJob {
     private final SessionPlanner planner;
     private final TransactionTemplate tx;
 
-    @Scheduled(initialDelayString = "PT10S", fixedDelayString = "${mywatchmate.sessions.generate-interval:PT1H}")
+    /** Timer and single-copy lock: {@link com.mywatchmate.config.ScheduledJobs}. */
     public int run() {
         List<UUID> active = tx.execute(status -> schedules.findByActiveTrue().stream().map(Schedule::getId).toList());
         int created = 0;

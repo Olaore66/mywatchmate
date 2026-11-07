@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -28,7 +29,11 @@ public class PaymentLink {
 
     public enum Provider { PAYAZA }
 
-    public enum Status { ALLOWED, BLOCKED }
+    /**
+     * ALLOWED: fine to show (never held, or cleared by staff). HELD: reported by enough viewers and waiting for
+     * review; not shown meanwhile. BLOCKED: confirmed as a scam by staff.
+     */
+    public enum Status { ALLOWED, HELD, BLOCKED }
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -51,27 +56,38 @@ public class PaymentLink {
 
     private String blockedReason;
 
+    // For a HELD link: how long it has waited for review
+    @Column(nullable = false)
+    private Instant statusChangedAt = Instant.now();
+
     @Column(nullable = false, updatable = false)
     private Instant firstSeenAt = Instant.now();
 
     @Column(nullable = false)
     private Instant lastSeenAt = Instant.now();
 
-    // Viewers who said "this looks like a scam"; enough of them and it's blocked until reviewed
+    // Viewers who said "this looks like a scam" since the last review; enough of them and it's held
     @Column(nullable = false)
     private int reportCount;
+
+    // A viewer's write can't silently undo a reviewer's decision
+    @Version
+    @Column(nullable = false)
+    private long version;
 
     public PaymentLink(String normalizedUrl, Provider provider) {
         this.normalizedUrl = normalizedUrl;
         this.provider = provider;
     }
 
+    /** Not to be shown anywhere: held for review, or confirmed as a scam. */
     public boolean isBlocked() {
-        return status == Status.BLOCKED;
+        return status != Status.ALLOWED;
     }
 
-    public void block(String reason) {
-        status = Status.BLOCKED;
-        blockedReason = reason;
+    public void changeStatus(Status to, String reason, Instant now) {
+        status = to;
+        blockedReason = to == Status.ALLOWED ? null : reason;
+        statusChangedAt = now;
     }
 }

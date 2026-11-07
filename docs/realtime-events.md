@@ -17,6 +17,8 @@ WebSocket traffic, so live events are documented here.
 
   Missing, expired or invalid token → the server answers with an ERROR frame and closes.
   When the access token expires, refresh it over REST and reconnect.
+- **Reconnecting:** at most 30 connection attempts a minute per network address; past that the handshake
+  gets HTTP 429 with `Retry-After`. Reconnect with a growing delay (stompjs `reconnectDelay`), not in a tight loop.
 
 ## Subscribing to a room
 
@@ -44,6 +46,11 @@ reconnect to it; if you need the socket for other rooms, reconnect and subscribe
   "data": { }
 }
 ```
+
+`at` is the server time the change happened. The topic is **server-only**: clients can't publish to it
+(the only frames clients may SEND are typing and reactions, see *Chat*).
+
+There is **no `PLAYBACK_STATE` event**: playback changes arrive as `PLAYBACK_CHANGED` (see *Watching together*).
 
 Events are sent only after the change is saved, so it's safe to act on them immediately.
 The person who made a change also receives its event; use it, or ignore it if you already
@@ -90,8 +97,12 @@ updated the screen from the REST response.
 
 **Participant**
 ```json
-{ "id": "7a9b…", "displayName": "Bisi", "role": "MEMBER", "guest": true, "joinedAt": "2026-10-22T05:58:00Z" }
+{ "id": "7a9b…", "displayName": "Bisi", "role": "MEMBER", "guest": true, "joinedAt": "2026-10-22T05:58:00Z",
+  "chatMuted": true, "chatMutedUntil": "2026-10-22T06:30:00Z" }
 ```
+`chatMuted`: a host muted them in the chat and it hasn't run out. `chatMutedUntil` is when it runs out (null when
+not muted, or muted until a host unmutes them). `GET /spaces/{id}/participants` has the same fields, so hosts
+still see who's muted after a refresh.
 
 **SpaceInfo**
 ```json
@@ -320,6 +331,11 @@ More than **1.5 s** apart → `seekTo` it. Don't correct smaller gaps; it makes 
 Never pause the room because one person is buffering. They catch up when their video loads.
 
 ### 6. Who's watching (and attendance)
+
+**Closing the tab is not leaving.** `POST /spaces/{id}/leave` takes the person *out of the room*: a user has to
+rejoin from the invite link, and a guest's session ends for good. Never call it when a tab closes. Just let the
+WebSocket close: the server takes them off the online list at once on disconnect, or within about half a minute if
+the connection drops without closing (missed heartbeats). No polling is needed; `PRESENCE_CHANGED` tells everyone.
 
 `onlineCount` is in `GET /spaces/{id}`, and `GET /spaces/{id}/presence` lists the people. After that,
 `PRESENCE_CHANGED` carries the whole list each time someone opens or closes the room. Someone whose

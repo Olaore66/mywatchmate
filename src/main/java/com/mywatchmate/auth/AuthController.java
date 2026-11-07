@@ -1,5 +1,6 @@
 package com.mywatchmate.auth;
 
+import com.mywatchmate.abuse.LoginAttempts;
 import com.mywatchmate.auth.dto.GuestJoinRequest;
 import com.mywatchmate.auth.dto.GuestRefreshRequest;
 import com.mywatchmate.auth.dto.GuestTokenResponse;
@@ -7,6 +8,7 @@ import com.mywatchmate.auth.dto.LoginRequest;
 import com.mywatchmate.auth.dto.RefreshRequest;
 import com.mywatchmate.auth.dto.RegisterRequest;
 import com.mywatchmate.auth.dto.TokenResponse;
+import com.mywatchmate.common.ApiException;
 import com.mywatchmate.config.OpenApiConfig;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -15,6 +17,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -43,6 +46,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService auth;
+    private final LoginAttempts attempts;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -64,9 +68,25 @@ public class AuthController {
         content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "401", description = "INVALID_CREDENTIALS (same response for unknown email and wrong password)",
         content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "429", description = """
+        TOO_MANY_ATTEMPTS: too many wrong passwords for this account (from here, or from many places), or too many
+        sign-ins from this address. Wait the seconds in the Retry-After header; it clears by itself.""",
+        content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public TokenResponse login(@Valid @RequestBody LoginRequest request,
-                               @Parameter(hidden = true) @RequestHeader(value = HttpHeaders.USER_AGENT, required = false) String userAgent) {
-        return auth.login(request, userAgent);
+                               @Parameter(hidden = true) @RequestHeader(value = HttpHeaders.USER_AGENT, required = false) String userAgent,
+                               @Parameter(hidden = true) HttpServletRequest http) {
+        String ip = http.getRemoteAddr();
+        attempts.check(request.email(), ip);
+        try {
+            TokenResponse tokens = auth.login(request, userAgent);
+            attempts.succeeded(request.email(), ip);
+            return tokens;
+        } catch (ApiException e) {
+            if ("INVALID_CREDENTIALS".equals(e.getCode())) {
+                attempts.failed(request.email(), ip);
+            }
+            throw e;
+        }
     }
 
     @PostMapping("/refresh")

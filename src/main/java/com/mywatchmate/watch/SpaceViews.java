@@ -3,7 +3,7 @@ package com.mywatchmate.watch;
 import com.mywatchmate.connect.ChatService;
 import com.mywatchmate.identity.User;
 import com.mywatchmate.live.PlaybackService;
-import com.mywatchmate.live.PresenceTracker;
+import com.mywatchmate.live.RoomPresence;
 import com.mywatchmate.track.StreakService;
 import com.mywatchmate.watch.dto.ContentResponse;
 import com.mywatchmate.watch.dto.PersonRef;
@@ -20,7 +20,7 @@ public class SpaceViews {
     private final ParticipantRepository participants;
     private final SpaceProperties props;
     private final PlaybackService playback;
-    private final PresenceTracker presence;
+    private final RoomPresence presence;
     private final StreakService streaks;
     private final ChatService chat;
     private final Clock clock;

@@ -2,6 +2,8 @@ package com.mywatchmate.identity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -21,6 +23,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User {
+
+    /** MyWatchMate staff: can review reported payment links. Granted by deploy/grant-staff.sh only. */
+    public enum StaffRole { MODERATOR, ADMIN }
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -45,6 +50,11 @@ public class User {
     // When they proved this address is theirs; null until then
     private Instant emailVerifiedAt;
 
+    // Null for everyone except MyWatchMate staff
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private StaffRole staffRole;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -52,6 +62,10 @@ public class User {
     @UpdateTimestamp
     @Column(nullable = false)
     private Instant updatedAt;
+
+    public boolean isStaff() {
+        return staffRole != null;
+    }
 
     public boolean isEmailVerified() {
         return emailVerifiedAt != null;

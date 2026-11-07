@@ -2,7 +2,8 @@ package com.mywatchmate.connect;
 
 import com.mywatchmate.auth.AuthPrincipal;
 import com.mywatchmate.common.ApiException;
-import com.mywatchmate.common.SlidingWindowLimiter;
+import com.mywatchmate.common.RateLimiter;
+import com.mywatchmate.common.RateLimiters;
 import com.mywatchmate.connect.dto.ChatMessageResponse;
 import com.mywatchmate.connect.dto.ChatPage;
 import com.mywatchmate.connect.dto.MemberMuted;
@@ -41,25 +42,25 @@ public class ChatService {
     static final int DEFAULT_PAGE = 50;
     static final int MAX_PAGE = 100;
     // "Until unmuted" is stored as a far-off date and shown as null
-    static final Instant MUTED_INDEFINITELY = Instant.parse("9999-12-31T23:59:59Z");
+    public static final Instant MUTED_INDEFINITELY = Instant.parse("9999-12-31T23:59:59Z");
 
     private final ChatMessageRepository messages;
     private final ParticipantRepository participants;
     private final WatchSessionRepository sessions;
     private final SpaceAccess access;
     private final SpaceEvents events;
-    private final SlidingWindowLimiter limiter;
+    private final RateLimiter limiter;
     private final Clock clock;
 
     @Autowired
     public ChatService(ChatMessageRepository messages, ParticipantRepository participants,
-                       WatchSessionRepository sessions, SpaceAccess access, SpaceEvents events, Clock clock) {
-        this(messages, participants, sessions, access, events, clock,
-            new SlidingWindowLimiter(clock, MAX_PER_WINDOW, WINDOW, 10_000));
+                       WatchSessionRepository sessions, SpaceAccess access, SpaceEvents events, Clock clock,
+                       RateLimiters limits) {
+        this(messages, participants, sessions, access, events, clock, limits.limiter("chat-send", MAX_PER_WINDOW, WINDOW));
     }
 
     ChatService(ChatMessageRepository messages, ParticipantRepository participants, WatchSessionRepository sessions,
-                SpaceAccess access, SpaceEvents events, Clock clock, SlidingWindowLimiter limiter) {
+                SpaceAccess access, SpaceEvents events, Clock clock, RateLimiter limiter) {
         this.messages = messages;
         this.participants = participants;
         this.sessions = sessions;
@@ -151,7 +152,7 @@ public class ChatService {
         Participant target = moderatable(actor, spaceId, targetId);
         Instant until = minutes == null ? MUTED_INDEFINITELY : clock.instant().plus(Duration.ofMinutes(minutes));
         target.muteChat(until);
-        MemberMuted muted = new MemberMuted(ParticipantResponse.from(target), shownUntil(until));
+        MemberMuted muted = new MemberMuted(ParticipantResponse.from(target, clock.instant()), shownUntil(until));
         events.publish(spaceId, SpaceEvent.Type.MEMBER_MUTED, muted);
         return muted;
     }

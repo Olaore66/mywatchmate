@@ -16,6 +16,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -47,6 +48,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -62,6 +64,7 @@ class GiveServiceTest {
     @Mock WatchSessionRepository sessions;
     @Mock SpaceAccess access;
     @Mock SpaceEvents events;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     private final GiveProperties props = new GiveProperties(List.of("payaza.africa"), Duration.ofMinutes(10),
         Duration.ofMinutes(5), 3, Duration.ofHours(1), "secret");
@@ -76,7 +79,7 @@ class GiveServiceTest {
     @BeforeEach
     void setUp() {
         service = new GiveService(new PaymentLinkRecognizer(props), links, detections, roomBlocks, sessions, access,
-            events, props, clockAt(NOW));
+            events, props, clockAt(NOW), eventPublisher);
         space = space(user("Ada"));
         ada = member(space, space.getOwner(), Participant.Role.OWNER);
         tunde = member(space, user("Tunde"), Participant.Role.MEMBER);
@@ -175,9 +178,12 @@ class GiveServiceTest {
 
         @Test
         void aLinkBlockedEverywhereIsRefusedToo() {
-            stmarks.block("scam");
+            stmarks.changeStatus(PaymentLink.Status.BLOCKED, "scam", NOW);
 
             assertApiError(() -> service.showByHost(principalOf(ada), space.getId(), LINK), HttpStatus.CONFLICT, "LINK_BLOCKED");
+
+            stmarks.changeStatus(PaymentLink.Status.HELD, "reported", NOW);
+            assertThat(GiveService.blockedMessage(service.blockReason(space.getId(), stmarks))).contains("reviewing");
         }
     }
 
@@ -361,6 +367,42 @@ class GiveServiceTest {
     }
 
     @Nested
+    class BlockReasons {
+
+        @Test
+        void aHeldLinkSaysItIsUnderReviewBeforeAnyRoomBlock() {
+            lenient().when(roomBlocks.existsById(new SpaceBlockedLinkId(space.getId(), stmarks.getId()))).thenReturn(true);
+
+            stmarks.changeStatus(PaymentLink.Status.HELD, "reported", NOW);
+            assertThat(service.blockReason(space.getId(), stmarks)).isEqualTo("UNDER_REVIEW");
+
+            stmarks.changeStatus(PaymentLink.Status.BLOCKED, "scam", NOW);
+            assertThat(service.blockReason(space.getId(), stmarks)).isEqualTo("BLOCKED_EVERYWHERE");
+
+            stmarks.changeStatus(PaymentLink.Status.ALLOWED, null, NOW);
+            assertThat(service.blockReason(space.getId(), stmarks)).isEqualTo("BLOCKED_IN_ROOM");
+        }
+
+        @Test
+        void eachReasonHasItsOwnWords() {
+            assertThat(GiveService.blockedMessage("BLOCKED_IN_ROOM")).contains("in this room");
+            assertThat(GiveService.blockedMessage("UNDER_REVIEW")).contains("reviewing");
+            assertThat(GiveService.blockedMessage("BLOCKED_EVERYWHERE")).contains("blocked on MyWatchMate");
+        }
+
+        @Test
+        void takingALinkDownEverywhereClosesItInEachRoom() {
+            CueDetection prompt = showing(stmarks, NOW.plusSeconds(60));
+            when(detections.findOpenForLink(stmarks.getId())).thenReturn(List.of(prompt));
+
+            service.takeDownEverywhere(stmarks.getId(), NOW);
+
+            assertThat(prompt.getClosedAt()).isEqualTo(NOW);
+            verify(events).publish(space.getId(), SpaceEvent.Type.GIVE_PROMPT_CLOSED, Map.of("promptId", prompt.getId()));
+        }
+    }
+
+    @Nested
     class Reports {
 
         @Test
@@ -374,38 +416,36 @@ class GiveServiceTest {
             service.report(principalOf(tunde), space.getId(), prompt.getId(), "Not our church");
             service.report(principalOf(bisi), space.getId(), prompt.getId(), "  ");
 
-            assertThat(stmarks.getReportCount()).isEqualTo(2);
-            assertThat(stmarks.isBlocked()).isFalse();
-            verifyNoInteractions(events);
+            verify(links, times(2)).countReport(stmarks.getId());
+            verify(links, times(2)).holdIfReported(stmarks.getId(), 3, GiveService.REPORTED_REASON, NOW);
+            verifyNoInteractions(events, eventPublisher);
         }
 
         @Test
-        void theThirdReportBlocksTheLinkEverywhereAndTakesItDown() {
+        void theReportThatHoldsTheLinkTakesItDownEverywhereAndAlertsStaff() {
             CueDetection prompt = showing(stmarks, NOW.plusSeconds(60));
-            stmarks.setReportCount(2);
             when(links.insertReport(eq(stmarks.getId()), anyString(), eq(prompt.getId()), any())).thenReturn(1);
+            when(links.holdIfReported(stmarks.getId(), 3, GiveService.REPORTED_REASON, NOW)).thenReturn(1);
             when(detections.findOpenForLink(stmarks.getId())).thenReturn(List.of(prompt));
 
             service.report(principalOf(bisi), space.getId(), prompt.getId(), null);
 
-            assertThat(stmarks.isBlocked()).isTrue();
-            assertThat(stmarks.getBlockedReason()).isEqualTo(GiveService.REPORTED_REASON);
             assertThat(prompt.getClosedAt()).isEqualTo(NOW);
             verify(events).publish(space.getId(), SpaceEvent.Type.GIVE_PROMPT_CLOSED, Map.of("promptId", prompt.getId()));
+            verify(eventPublisher).publishEvent(new LinkHeld(stmarks.getId()));
         }
 
         @Test
-        void reportsAfterBlockingJustCount() {
+        void reportsThatDontHoldItJustCount() {
             CueDetection prompt = showing(stmarks, NOW.plusSeconds(60));
-            stmarks.setReportCount(5);
-            stmarks.block("already");
             when(links.insertReport(eq(stmarks.getId()), anyString(), eq(prompt.getId()), any())).thenReturn(1);
+            when(links.holdIfReported(stmarks.getId(), 3, GiveService.REPORTED_REASON, NOW)).thenReturn(0);
 
             service.report(principalOf(bisi), space.getId(), prompt.getId(), null);
 
-            assertThat(stmarks.getReportCount()).isEqualTo(6);
-            assertThat(stmarks.getBlockedReason()).isEqualTo("already");
+            verify(links).countReport(stmarks.getId());
             verify(detections, never()).findOpenForLink(any());
+            verifyNoInteractions(eventPublisher);
         }
     }
 }

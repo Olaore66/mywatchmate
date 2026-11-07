@@ -1,14 +1,14 @@
 package com.mywatchmate.connect;
 
 import com.mywatchmate.auth.PrincipalAuthentication;
-import com.mywatchmate.common.SlidingWindowLimiter;
+import com.mywatchmate.common.RateLimiter;
+import com.mywatchmate.common.RateLimiters;
 import com.mywatchmate.connect.dto.ChatSignal;
 import com.mywatchmate.watch.SpaceAccess;
 import com.mywatchmate.watch.SpaceEvent;
 import com.mywatchmate.watch.SpaceEvents;
 import com.mywatchmate.watch.dto.ParticipantResponse;
 import java.security.Principal;
-import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
@@ -35,17 +35,16 @@ public class ChatRelay {
     private final SpaceEvents events;
     private final ChatService chat;
     // At most one "typing" per person every 2 s, and 5 reactions every 3 s
-    private final SlidingWindowLimiter typing;
-    private final SlidingWindowLimiter reactions;
+    private final RateLimiter typing;
+    private final RateLimiter reactions;
 
     @Autowired
-    public ChatRelay(SpaceAccess access, SpaceEvents events, ChatService chat, Clock clock) {
-        this(access, events, chat, new SlidingWindowLimiter(clock, 1, Duration.ofSeconds(2), 10_000),
-            new SlidingWindowLimiter(clock, 5, Duration.ofSeconds(3), 10_000));
+    public ChatRelay(SpaceAccess access, SpaceEvents events, ChatService chat, RateLimiters limits) {
+        this(access, events, chat, limits.limiter("chat-typing", 1, Duration.ofSeconds(2)),
+            limits.limiter("chat-reaction", 5, Duration.ofSeconds(3)));
     }
 
-    ChatRelay(SpaceAccess access, SpaceEvents events, ChatService chat,
-              SlidingWindowLimiter typing, SlidingWindowLimiter reactions) {
+    ChatRelay(SpaceAccess access, SpaceEvents events, ChatService chat, RateLimiter typing, RateLimiter reactions) {
         this.access = access;
         this.events = events;
         this.chat = chat;

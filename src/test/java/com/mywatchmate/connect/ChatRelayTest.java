@@ -46,9 +46,9 @@ class ChatRelayTest {
     void setUp() {
         relay = new ChatRelay(access, events, chat, typing, reactions);
         lenient().when(access.activeParticipant(bisi, room)).thenReturn(Optional.of(
-            new ParticipantResponse(bisiId, "Bisi", Participant.Role.MEMBER, true, Instant.now())));
-        lenient().when(typing.tryAcquire(any())).thenReturn(true);
-        lenient().when(reactions.tryAcquire(any())).thenReturn(true);
+            new ParticipantResponse(bisiId, "Bisi", Participant.Role.MEMBER, true, Instant.now(), false, null)));
+        lenient().when(typing.tryAcquire(any(UUID.class))).thenReturn(true);
+        lenient().when(reactions.tryAcquire(any(UUID.class))).thenReturn(true);
     }
 
     private static Principal auth(AuthPrincipal who) {

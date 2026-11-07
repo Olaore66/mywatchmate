@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.mywatchmate.auth.AuthPrincipal;
+import com.mywatchmate.cluster.LocalClusterBus;
 import com.mywatchmate.auth.PrincipalAuthentication;
 import com.mywatchmate.live.dto.OnlineViewer;
 import com.mywatchmate.live.dto.PresenceResponse;
@@ -53,12 +54,13 @@ class PresenceListenerTest {
 
     @BeforeEach
     void setUp() {
-        listener = new PresenceListener(presence, access, events, connections);
+        listener = new PresenceListener(presence, new LocalRoomPresence(presence), access, events, connections,
+            new LocalClusterBus());
     }
 
     private void bisiIsAMember() {
         when(access.activeParticipant(bisi, room)).thenReturn(Optional.of(
-            new ParticipantResponse(bisiId, "Bisi", Participant.Role.MEMBER, true, Instant.now())));
+            new ParticipantResponse(bisiId, "Bisi", Participant.Role.MEMBER, true, Instant.now(), false, null)));
     }
 
     @Test
@@ -118,7 +120,7 @@ class PresenceListenerTest {
         listener.onSubscribe(subscribe("laptop", "sub-1", "/topic/spaces/" + room + "/events", bisi));
 
         listener.onSpaceEvent(new SpaceEvent(SpaceEvent.Type.MEMBER_REMOVED, room, Instant.now(),
-            new ParticipantResponse(bisiId, "Bisi", Participant.Role.MEMBER, true, Instant.now())));
+            new ParticipantResponse(bisiId, "Bisi", Participant.Role.MEMBER, true, Instant.now(), false, null)));
 
         verify(connections).close("phone", ConnectionRegistry.NO_LONGER_A_MEMBER);
         verify(connections).close("laptop", ConnectionRegistry.NO_LONGER_A_MEMBER);
@@ -130,7 +132,7 @@ class PresenceListenerTest {
         listener.onSubscribe(subscribe("phone", "sub-1", "/topic/spaces/" + room + "/events", bisi));
 
         listener.onSpaceEvent(new SpaceEvent(SpaceEvent.Type.MEMBER_LEFT, room, Instant.now(),
-            new ParticipantResponse(bisiId, "Bisi", Participant.Role.MEMBER, true, Instant.now())));
+            new ParticipantResponse(bisiId, "Bisi", Participant.Role.MEMBER, true, Instant.now(), false, null)));
 
         verify(connections).close("phone", ConnectionRegistry.NO_LONGER_A_MEMBER);
     }
@@ -153,7 +155,7 @@ class PresenceListenerTest {
     @Test
     void otherRoomEventsCloseNothing() {
         listener.onSpaceEvent(new SpaceEvent(SpaceEvent.Type.ROLE_CHANGED, room, Instant.now(),
-            new ParticipantResponse(bisiId, "Bisi", Participant.Role.ADMIN, false, Instant.now())));
+            new ParticipantResponse(bisiId, "Bisi", Participant.Role.ADMIN, false, Instant.now(), false, null)));
         verify(connections, never()).close(any(), any());
     }
 

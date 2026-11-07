@@ -8,6 +8,7 @@ import java.util.UUID;
 public record CueOutcome(
     @Schema(description = "Null when nothing was recorded (e.g. already showing)", nullable = true) UUID detectionId,
     CueDetection.Status status,
-    @Schema(example = "NOT_PAYAZA", nullable = true) String reason
+    @Schema(description = "e.g. NOT_PAYAZA, BLOCKED_IN_ROOM, UNDER_REVIEW (reported, waiting for review), BLOCKED_EVERYWHERE",
+        example = "NOT_PAYAZA", nullable = true) String reason
 ) {
 }

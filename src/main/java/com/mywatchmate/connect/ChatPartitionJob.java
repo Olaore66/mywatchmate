@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,8 +22,8 @@ public class ChatPartitionJob {
 
     private final JdbcTemplate jdbc;
 
+    /** At startup, and daily (timer and single-copy lock: {@link com.mywatchmate.config.ScheduledJobs}). */
     @EventListener(ApplicationReadyEvent.class)
-    @Scheduled(cron = "0 0 3 * * *", zone = "UTC")
     public void ensurePartitions() {
         LocalDate month = LocalDate.now(ZoneOffset.UTC).withDayOfMonth(1);
         for (int i = 0; i <= MONTHS_AHEAD; i++) {

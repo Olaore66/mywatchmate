@@ -43,8 +43,8 @@ class ParticipantControllerTest {
     void guestsCanSeeWhoIsInTheirRoom() throws Exception {
         UUID guest = UUID.randomUUID();
         when(membership.list(AuthPrincipal.guest(guest, SPACE), SPACE)).thenReturn(List.of(
-            new ParticipantResponse(UUID.randomUUID(), "Ada", Participant.Role.OWNER, false, Instant.now()),
-            new ParticipantResponse(guest, "Bisi", Participant.Role.MEMBER, true, Instant.now())));
+            new ParticipantResponse(UUID.randomUUID(), "Ada", Participant.Role.OWNER, false, Instant.now(), false, null),
+            new ParticipantResponse(guest, "Bisi", Participant.Role.MEMBER, true, Instant.now(), false, null)));
 
         mvc.perform(get(BASE + "/participants").with(asGuest(guest, SPACE)))
             .andExpect(status().isOk())
@@ -55,7 +55,7 @@ class ParticipantControllerTest {
     @Test
     void changingARoleSendsTheNewRole() throws Exception {
         when(membership.changeRole(AuthPrincipal.user(USER), SPACE, TARGET, Participant.Role.ADMIN))
-            .thenReturn(new ParticipantResponse(TARGET, "Tunde", Participant.Role.ADMIN, false, Instant.now()));
+            .thenReturn(new ParticipantResponse(TARGET, "Tunde", Participant.Role.ADMIN, false, Instant.now(), false, null));
 
         mvc.perform(patch(BASE + "/participants/" + TARGET).with(asUser(USER))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"ADMIN\"}"))

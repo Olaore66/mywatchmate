@@ -5,21 +5,20 @@ import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * At most {@code max} actions per {@code window} for each key (usually a participant), counted over a
- * sliding window. In memory, per server: good enough for slowing down floods even with several servers.
+ * sliding window. In memory, so per copy of the app; {@link RateLimiters} picks a shared one when several run.
  */
-public class SlidingWindowLimiter {
+public class SlidingWindowLimiter implements RateLimiter {
 
     private final Clock clock;
     private final int max;
     private final long windowMs;
     // Past this many keys tracked, forget the ones that haven't acted lately
     private final int cleanupAbove;
-    private final Map<UUID, Deque<Long>> recent = new ConcurrentHashMap<>();
+    private final Map<String, Deque<Long>> recent = new ConcurrentHashMap<>();
 
     public SlidingWindowLimiter(Clock clock, int max, Duration window, int cleanupAbove) {
         this.clock = clock;
@@ -28,8 +27,8 @@ public class SlidingWindowLimiter {
         this.cleanupAbove = cleanupAbove;
     }
 
-    /** Counts the action and returns true, or returns false (not counted) when over the limit. */
-    public boolean tryAcquire(UUID key) {
+    @Override
+    public Duration acquire(String key) {
         long now = clock.instant().toEpochMilli();
         if (recent.size() > cleanupAbove) {
             recent.values().removeIf(actions -> isIdle(actions, now));
@@ -40,10 +39,11 @@ public class SlidingWindowLimiter {
                 actions.pollFirst();
             }
             if (actions.size() >= max) {
-                return false;
+                // Allowed again once the oldest counted action leaves the window
+                return Duration.ofMillis(Math.max(1, actions.peekFirst() + windowMs - now));
             }
             actions.addLast(now);
-            return true;
+            return Duration.ZERO;
         }
     }
 

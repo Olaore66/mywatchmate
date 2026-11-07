@@ -57,7 +57,7 @@ class MembershipServiceTest {
     @BeforeEach
     void setUp() {
         service = new MembershipService(spaces, participants, users, access, views, events,
-            new SpaceProperties(MAX_MEMBERS, "http://localhost:3000"));
+            new SpaceProperties(MAX_MEMBERS, "http://localhost:3000"), java.time.Clock.fixed(java.time.Instant.parse("2026-11-02T00:00:00Z"), java.time.ZoneOffset.UTC));
         ada = user("Ada");
         space = space(ada);
         owner = member(space, ada, Participant.Role.OWNER);
@@ -379,6 +379,21 @@ class MembershipServiceTest {
 
             assertThat(list).extracting(ParticipantResponse::displayName).containsExactly("Ada", "Admin", "Tunde", "Bisi");
             assertThat(list).extracting(ParticipantResponse::guest).containsExactly(false, false, false, true);
+        }
+
+        @Test
+        void listingShowsWhoIsMutedSoHostsSeeItAfterARefresh() {
+            java.time.Instant now = java.time.Instant.parse("2026-11-02T00:00:00Z");
+            tunde.muteChat(now.plusSeconds(600));
+            bisi.muteChat(com.mywatchmate.connect.ChatService.MUTED_INDEFINITELY);
+            admin.muteChat(now.minusSeconds(1));
+            when(participants.findActiveWithUsers(space.getId())).thenReturn(List.of(owner, admin, tunde, bisi));
+
+            List<ParticipantResponse> list = service.list(principalOf(owner), space.getId());
+
+            assertThat(list).extracting(ParticipantResponse::chatMuted).containsExactly(false, false, true, true);
+            assertThat(list).extracting(ParticipantResponse::chatMutedUntil)
+                .containsExactly(null, null, now.plusSeconds(600), null);
         }
     }
 

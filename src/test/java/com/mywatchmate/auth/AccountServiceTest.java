@@ -17,6 +17,7 @@ import static org.mockito.Mockito.when;
 
 import com.mywatchmate.auth.AccountToken.Purpose;
 import com.mywatchmate.common.ApiException;
+import com.mywatchmate.common.LocalRateLimiters;
 import com.mywatchmate.identity.User;
 import com.mywatchmate.identity.UserRepository;
 import java.time.Duration;
@@ -49,7 +50,8 @@ class AccountServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AccountService(users, accountTokens, refreshTokens, links, auth, tokens, passwordEncoder, clockAt(NOW));
+        service = new AccountService(users, accountTokens, refreshTokens, links, auth, tokens, passwordEncoder, clockAt(NOW),
+            new LocalRateLimiters(clockAt(NOW)));
         ada = user("Ada");
         lenient().when(tokens.hash(anyString())).thenAnswer(i -> "hash:" + i.getArgument(0));
         lenient().when(passwordEncoder.encode(anyString())).thenAnswer(i -> "{bcrypt}" + i.getArgument(0));

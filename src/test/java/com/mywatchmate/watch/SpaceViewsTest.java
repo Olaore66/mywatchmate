@@ -11,7 +11,7 @@ import static org.mockito.Mockito.when;
 import com.mywatchmate.connect.ChatService;
 import com.mywatchmate.identity.User;
 import com.mywatchmate.live.PlaybackService;
-import com.mywatchmate.live.PresenceTracker;
+import com.mywatchmate.live.RoomPresence;
 import com.mywatchmate.live.PlaybackState;
 import com.mywatchmate.live.dto.PlaybackResponse;
 import com.mywatchmate.testsupport.Fixtures;
@@ -30,7 +30,7 @@ class SpaceViewsTest {
 
     @Mock ParticipantRepository participants;
     @Mock PlaybackService playback;
-    @Mock PresenceTracker presence;
+    @Mock RoomPresence presence;
     @Mock StreakService streaks;
     @Mock ChatService chat;
 

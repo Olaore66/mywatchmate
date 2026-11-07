@@ -5,7 +5,10 @@ import static com.mywatchmate.testsupport.Fixtures.assertApiError;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
+import com.mywatchmate.common.LocalRateLimiters;
+import com.mywatchmate.common.SlidingWindowLimiter;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -40,7 +43,7 @@ class CommandRateLimiterTest {
     }
 
     private final ManualClock clock = new ManualClock();
-    private final CommandRateLimiter limiter = new CommandRateLimiter(clock);
+    private final CommandRateLimiter limiter = new CommandRateLimiter(new LocalRateLimiters(clock));
     private final UUID tunde = UUID.randomUUID();
 
     @Test
@@ -77,24 +80,9 @@ class CommandRateLimiterTest {
     }
 
     @Test
-    void peopleWhoStoppedPressingAreForgottenOnceTheListGetsLong() {
-        CommandRateLimiter small = new CommandRateLimiter(clock, 3);
-        for (int i = 0; i < 4; i++) {
-            small.check(UUID.randomUUID());
-        }
-        UUID stillBusy = UUID.randomUUID();
-        clock.advanceMillis(CommandRateLimiter.WINDOW_MS);
-        small.check(stillBusy);
-        assertThat(small.trackedCount()).as("the 4 idle people are dropped, the new one kept").isEqualTo(1);
-
-        clock.advanceMillis(10);
-        small.check(stillBusy);
-        assertThat(small.trackedCount()).isEqualTo(1);
-    }
-
-    @Test
     void activePeopleKeepTheirCountThroughAClean() {
-        CommandRateLimiter small = new CommandRateLimiter(clock, 1);
+        CommandRateLimiter small = new CommandRateLimiter(new SlidingWindowLimiter(clock, CommandRateLimiter.MAX_PER_WINDOW,
+            Duration.ofMillis(CommandRateLimiter.WINDOW_MS), 1));
         for (int i = 0; i < CommandRateLimiter.MAX_PER_WINDOW; i++) {
             small.check(tunde);
         }

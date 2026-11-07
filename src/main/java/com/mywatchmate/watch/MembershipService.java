@@ -9,6 +9,7 @@ import com.mywatchmate.watch.dto.InvitePreviewResponse;
 import com.mywatchmate.watch.dto.OwnershipTransferred;
 import com.mywatchmate.watch.dto.ParticipantResponse;
 import com.mywatchmate.watch.dto.SpaceResponse;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +30,7 @@ public class MembershipService {
     private final SpaceViews views;
     private final SpaceEvents events;
     private final SpaceProperties props;
+    private final Clock clock;
 
     /** Public: what the room behind a link looks like, before joining. */
     @Transactional(readOnly = true)
@@ -82,7 +84,8 @@ public class MembershipService {
     @Transactional(readOnly = true)
     public List<ParticipantResponse> list(AuthPrincipal principal, UUID spaceId) {
         access.require(principal, spaceId);
-        return participants.findActiveWithUsers(spaceId).stream().map(ParticipantResponse::from).toList();
+        Instant now = clock.instant();
+        return participants.findActiveWithUsers(spaceId).stream().map(p -> ParticipantResponse.from(p, now)).toList();
     }
 
     /** Owner only: ADMIN ↔ MEMBER for registered members. */

@@ -1,14 +1,19 @@
 package com.mywatchmate.web;
 
+import com.mywatchmate.abuse.AbuseProperties;
 import com.mywatchmate.auth.AuthPrincipal;
 import com.mywatchmate.auth.JwtPrincipalConverter;
 import com.mywatchmate.auth.JwtProperties;
 import com.mywatchmate.auth.PrincipalAuthentication;
+import com.mywatchmate.common.LocalRateLimiters;
+import com.mywatchmate.common.RateLimiters;
 import com.mywatchmate.config.JwtConfig;
 import com.mywatchmate.config.SecurityConfig;
+import java.time.Clock;
 import java.util.UUID;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -21,8 +26,14 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  */
 @TestConfiguration
 @Import({SecurityConfig.class, JwtConfig.class, JwtPrincipalConverter.class})
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, AbuseProperties.class})
 public class WebLayerTestConfig {
+
+    /** The security chain's per-IP limits need one (they're off in tests: mywatchmate.abuse.enabled=false). */
+    @Bean
+    RateLimiters rateLimiters() {
+        return new LocalRateLimiters(Clock.systemUTC());
+    }
 
     public static RequestPostProcessor asUser(UUID userId) {
         return as(AuthPrincipal.user(userId), userId);

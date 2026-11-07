@@ -36,12 +36,15 @@ public class OpenApiConfig {
                     ### Real-time
                     Live features use STOMP over WebSocket at `/ws`. Send `Authorization: Bearer <accessToken>`
                     as a header on the STOMP **CONNECT** frame, then subscribe to `/topic/spaces/{spaceId}/events`
-                    (room members only). Every event is `{"type","spaceId","at","data"}`. Types: MEMBER_JOINED,
-                    MEMBER_LEFT, MEMBER_REMOVED, ROLE_CHANGED, OWNERSHIP_TRANSFERRED, SPACE_UPDATED, SPACE_ARCHIVED,
-                    SPACE_RESTORED, CONTENT_ADDED, CONTENT_REMOVED, NOW_PLAYING_CHANGED, SCHEDULE_UPDATED,
-                    SESSION_SCHEDULED, SESSION_STARTED, SESSION_ENDED, SESSION_CANCELLED.
-                    Full payloads: `docs/realtime-events.md` in the backend repository.
-                    """))
+                    (room members only). Every event is `{"type","spaceId","at","data"}`; `at` is the server time
+                    it happened. The topic is **server-only**: clients can't publish to it. The only frames clients
+                    may SEND are typing (`/app/spaces/{id}/typing`) and reactions (`/app/spaces/{id}/reaction`).
+
+                    Every event type: %s.
+
+                    **Full payloads, with the live-sync guide: [/docs/realtime-events.md](/docs/realtime-events.md)**
+                    """.formatted(String.join(", ", java.util.Arrays.stream(com.mywatchmate.watch.SpaceEvent.Type.values())
+                        .map(Enum::name).toList()))))
             .components(new Components().addSecuritySchemes(BEARER, new SecurityScheme()
                 .type(SecurityScheme.Type.HTTP)
                 .scheme("bearer")

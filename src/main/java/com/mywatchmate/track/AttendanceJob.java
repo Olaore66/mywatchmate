@@ -6,7 +6,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -23,7 +22,7 @@ public class AttendanceJob {
     private final TransactionTemplate tx;
     private final Clock clock;
 
-    @Scheduled(initialDelayString = "PT20S", fixedDelayString = "${mywatchmate.track.attendance-interval:PT30S}")
+    /** Timer and single-copy lock: {@link com.mywatchmate.config.ScheduledJobs}. */
     public void run() {
         tick();
     }

@@ -45,7 +45,7 @@ class PlaybackControllerTest {
 
     @Autowired MockMvc mvc;
     @MockitoBean PlaybackService playback;
-    @MockitoBean PresenceTracker presence;
+    @MockitoBean RoomPresence presence;
     @MockitoBean SpaceAccess access;
     @MockitoBean Clock clock;
 

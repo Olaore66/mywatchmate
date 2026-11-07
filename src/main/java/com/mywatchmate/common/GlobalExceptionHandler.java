@@ -1,5 +1,6 @@
 package com.mywatchmate.common;
 
+import com.mywatchmate.abuse.TooManyAttempts;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -8,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -28,7 +30,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
         problem.setTitle(ex.getStatus().getReasonPhrase());
         problem.setProperty("code", ex.getCode());
-        return ResponseEntity.status(ex.getStatus()).body(problem);
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(ex.getStatus());
+        if (ex instanceof TooManyAttempts limited) {
+            response.header(HttpHeaders.RETRY_AFTER, Long.toString(TooManyAttempts.seconds(limited.getRetryAfter())));
+        }
+        return response.body(problem);
     }
 
     @Override
@@ -69,6 +75,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             case 415 -> "UNSUPPORTED_MEDIA_TYPE";
             default -> "HTTP_" + status.value();
         };
+    }
+
+    /** Two writes to the same row at the same moment (e.g. a host showing a link a reviewer just blocked). */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    ResponseEntity<ProblemDetail> handleConcurrentUpdate(ObjectOptimisticLockingFailureException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+            "Something changed at the same moment. Please try again.");
+        problem.setTitle("Conflict");
+        problem.setProperty("code", "CONCURRENT_UPDATE");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
     @ExceptionHandler(Exception.class)

@@ -49,7 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PlaybackController {
 
     private final PlaybackService playback;
-    private final PresenceTracker presence;
+    private final RoomPresence presence;
     private final SpaceAccess access;
 
     @GetMapping("/playback")

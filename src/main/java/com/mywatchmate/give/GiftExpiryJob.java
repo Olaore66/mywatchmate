@@ -1,7 +1,6 @@
 package com.mywatchmate.give;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -13,7 +12,7 @@ public class GiftExpiryJob {
     private final GiftService gifts;
     private final TransactionTemplate tx;
 
-    @Scheduled(initialDelayString = "PT1M", fixedDelayString = "${mywatchmate.give.expiry-interval:PT10M}")
+    /** Timer and single-copy lock: {@link com.mywatchmate.config.ScheduledJobs}. */
     public void run() {
         expire();
     }

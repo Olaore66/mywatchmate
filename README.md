@@ -16,6 +16,8 @@ Spring Boot 4.1 · Java 21 · PostgreSQL · Flyway. Concept: [watchwithme-idea-c
 | `track` | Attendance (from presence), streaks, notes | `attendance`, `streaks`, `notes` (+ `reminders`, used by `notify`) |
 | `connect` | Room chat (kept forever), mutes, typing and reactions; video calls through LiveKit (`connect.call`) | `chat_messages` (monthly partitions) |
 | `give` | Give prompts (host or AI cue) → in-room Payaza checkout, gifts, blocks, scam reports | `payment_links`, `space_blocked_links`, `cue_detections`, `gifts`, `payment_link_reports` |
+| `moderation` | Staff review of reported payment links: queue, evidence, confirm/clear, audit trail | `link_reviews` (+ `users.staff_role`) |
+| `cluster` | Running one copy of the app or many: live events, presence and rate limits (in memory, or shared through Redis), single-copy job lock | `job_locks` |
 | `config` | Security, JWT, Swagger, WebSocket (STOMP at `/ws`), clock, background jobs switch | |
 | `common` | Error format (problem+json), shared helpers | |
 
@@ -73,6 +75,7 @@ Needs: AWS CLI signed in (`aws configure`), Docker Desktop running, Git Bash.
 | Create staging (first time, ~15 min; safe to re-run) | `deploy/setup-staging.sh` |
 | Ship the current commit (~3 min) | `deploy/release.sh` |
 | Delete everything (keeps a final DB snapshot) | `deploy/teardown-staging.sh` |
+| Make someone staff (they sign up first), or undo it | `deploy/grant-staff.sh email MODERATOR\|ADMIN\|none` |
 
 Run the tests before releasing. The server is reached through AWS Session Manager (no SSH keys);
 logs: `aws ssm start-session --target <instance-id>` then `sudo docker logs -f app`.
@@ -130,6 +133,44 @@ keeping their history. WebSocket clients send `Authorization: Bearer <accessToke
     AI does (Phase 8, via `POST /internal/cues`); viewers open the checkout in-room and report the result.
     Settings: `PAYAZA_HOSTS` (accepted Payaza link domains), `INTERNAL_CUE_TOKEN` (the AI worker's token;
     empty turns `/internal` off).
+12. Scam review (staff only): 3 reports from different people **hold** a link (not shown anywhere) and email staff.
+    A reviewer (`GET /admin/links`, `GET /admin/links/{id}`) confirms it (`BLOCKED`) or clears it (`ALLOWED`) with
+    `POST /admin/links/{id}/decision`; `POST /admin/links/block` blocks a link before anyone reports it. Decisions
+    are kept for good in `link_reviews` (the database refuses edits). The staff role is checked in the database
+    on every call and granted only with `deploy/grant-staff.sh`; `staffRole` on `/me` tells the app to show the screen.
+
+### Limits on sign-in and sign-up
+
+Bots go for the public endpoints, so each has a per-address limit (settings under `mywatchmate.abuse`):
+sign-in 30/min, sign-up and guest upgrade 5/hour and 20/day, guest join 20/hour, token refresh 60/min,
+forgot password 5/hour, emailed links 20/hour, WebSocket handshake 30/min. Wrong passwords are also counted
+per account: 5 from one address in 15 minutes block that account **from that address** (a success there clears
+it), and 20 from anywhere in an hour slow it down everywhere. Nothing locks an owner out for good: blocks clear
+as old failures age. Over a limit: **429 `TOO_MANY_ATTEMPTS`** with a `Retry-After` header (seconds), readable
+by the browser (CORS exposes it); Swagger lists the 429 on every guarded endpoint. Emails are only kept hashed.
+
+The client's address comes from Tomcat's proxy handling (`forward-headers-strategy: native`): it reads
+`X-Forwarded-For` from the right and only trusts private-network proxies, so a client can't fake its address.
+With `CLUSTER_MODE=REDIS` the counts are shared by every copy. `ABUSE_LIMITS_ENABLED=false` turns it all off.
+
+### One server now, more later
+
+Staging runs **one copy of the app and one database**, with nothing else to run. The parts that would break
+with a second copy are behind a switch, `CLUSTER_MODE`:
+
+| | `LOCAL` (default) | `REDIS` (several copies behind a load balancer) |
+|---|---|---|
+| Room events over the WebSocket | this copy's in-memory broker | sent through Redis pub/sub; every copy delivers to its own clients |
+| Who's online | this copy's connections | each copy's list in Redis, refreshed every 10 s; a crashed copy drops off after 30 s |
+| Rate limits (chat, playback, emails) | in memory | one shared sliding window per person in Redis (allowed if Redis is down) |
+| Removing someone from a room | closes their connections here | every copy closes theirs |
+| Background jobs | one row lock per job in Postgres (`job_locks`) | the same: each turn runs on one copy |
+
+The frontend sees no difference: same endpoints, WebSocket topics and message JSON, byte for byte (tested).
+To go to several copies: run Redis (e.g. ElastiCache), set `CLUSTER_MODE=REDIS`, `REDIS_HOST`, `REDIS_PORT`
+(and `REDIS_PASSWORD` / `REDIS_SSL=true` if needed) and `REDIS_HEALTH_ENABLED=true`, then add copies behind a
+load balancer that supports WebSockets. No sticky sessions needed. The Redis tests run in Docker
+(Testcontainers) and are skipped when Docker isn't running.
 
 ### Background jobs
 
@@ -143,7 +184,8 @@ keeping their history. WebSocket clients send `Authorization: Bearer <accessToke
 | `GiftExpiryJob` | 10 min | Gifts opened over an hour ago with no result become UNKNOWN |
 | `ChatPartitionJob` | day | Creates next months' chat tables |
 
-All are safe to run on several servers at once (row locking, unique constraints). Tests switch them off
+Their timers live in `config/ScheduledJobs`; each turn runs on one copy only (`JobLock`, a row in `job_locks`),
+and the jobs also lock the rows they work on. Tests switch them off
 (`mywatchmate.jobs.enabled=false`) and call them directly with a controlled clock.
 
 Permissions are in the **Spaces** section of Swagger; live events are in
@@ -152,6 +194,5 @@ Permissions are in the **Spaces** section of Swagger; live events are in
 ## Not built yet
 
 - Push notifications (device tokens are already collected; sending needs Firebase/APNs credentials)
-- Redis fan-out for multiple instances (single-instance in-memory broker and presence for now)
 - AI cue worker (Phase 8: spots giving QR codes in the stream and calls `POST /internal/cues`)
 - Payaza's exact link domains (placeholder `payaza.africa` in `PAYAZA_HOSTS` until Payaza confirms)

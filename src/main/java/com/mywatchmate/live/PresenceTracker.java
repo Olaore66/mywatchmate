@@ -16,8 +16,8 @@ import org.springframework.stereotype.Component;
  * WebSocket connections is subscribed to one of its topics, so two tabs or a phone and a laptop
  * count once, and closing one of them keeps them online.
  * <p>
- * In memory: fine on one server, and a restart drops every connection anyway (clients reconnect
- * and subscribe again). With several servers this moves to Redis behind the same methods.
+ * This copy of the app's own connections, in memory: a restart drops them anyway (clients reconnect and
+ * subscribe again). {@link RoomPresence} adds up every copy's for the room-wide list.
  */
 @Component
 public class PresenceTracker {
@@ -74,6 +74,11 @@ public class PresenceTracker {
     public synchronized int onlineCount(UUID spaceId) {
         Map<UUID, OnlineViewer> viewers = rooms.get(spaceId);
         return viewers == null ? 0 : viewers.size();
+    }
+
+    /** Rooms someone is online in through this copy. */
+    public synchronized Set<UUID> rooms() {
+        return Set.copyOf(rooms.keySet());
     }
 
     /** The connections someone has open on a room, e.g. to close them when they're removed. */

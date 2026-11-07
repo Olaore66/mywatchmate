@@ -32,18 +32,25 @@ spring:
 
   data:
     redis:
+      # Only used with mywatchmate.cluster.mode=REDIS (several copies of the app)
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      # Redis is for pub/sub and presence, not entity storage
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL:false}
+      timeout: 2s
+      # Redis is for live events, presence and rate limits, not entity storage
       repositories:
         enabled: false
 
 server:
   # 8080 is taken by a local Apache (httpd) on the dev machine
   port: ${SERVER_PORT:8081}
-  # Behind Caddy (staging) the app is reached over plain HTTP; trust Caddy's X-Forwarded-Proto/Host
-  # so generated URLs (e.g. Swagger's "Try it out") use https. The app port is never exposed directly.
-  forward-headers-strategy: framework
+  # Behind Caddy (staging) the app is reached over plain HTTP; trust the proxy's X-Forwarded-Proto/For so
+  # generated URLs (e.g. Swagger's "Try it out") use https and request.getRemoteAddr() is the real client.
+  # Tomcat reads X-Forwarded-For from the right and only trusts private-network proxies (Caddy now, a load
+  # balancer later), so a client can't choose its own address by sending the header.
+  forward-headers-strategy: native
 
 mywatchmate:
   # Frontend origins allowed to call the API and open the WebSocket (comma-separated)
@@ -111,6 +118,39 @@ mywatchmate:
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
     from: ${MAIL_FROM:MyWatchMate <no-reply@mywatchmate.com>}
+  abuse:
+    # Per-IP limits on the endpoints bots go for, and failed sign-ins per account. Over a limit: 429
+    # TOO_MANY_ATTEMPTS with Retry-After. Shared through Redis in cluster mode REDIS.
+    enabled: ${ABUSE_LIMITS_ENABLED:true}
+    login:
+      # Wrong passwords for one account from one address (a success from there clears it)
+      per-account-and-ip: { max: 5, window: 15m }
+      # ...and from anywhere (slows attackers who switch addresses; no permanent lockout)
+      per-account: { max: 20, window: 1h }
+    rules:
+      - { name: login, method: POST, paths: [/api/v1/auth/login], limits: [{ max: 30, window: 1m }] }
+      - name: sign-up
+        method: POST
+        paths: [/api/v1/auth/register, /api/v1/auth/upgrade]
+        limits: [{ max: 5, window: 1h }, { max: 20, window: 1d }]
+      - { name: guest-join, method: POST, paths: [/api/v1/auth/guest], limits: [{ max: 20, window: 1h }] }
+      - name: refresh
+        method: POST
+        paths: [/api/v1/auth/refresh, /api/v1/auth/guest/refresh]
+        limits: [{ max: 60, window: 1m }]
+      - { name: forgot-password, method: POST, paths: [/api/v1/auth/password/forgot], limits: [{ max: 5, window: 1h }] }
+      - name: email-links
+        method: POST
+        paths: [/api/v1/auth/password/reset, /api/v1/auth/email/verify]
+        limits: [{ max: 20, window: 1h }]
+      - { name: websocket, method: GET, paths: [/ws, /ws/**], limits: [{ max: 30, window: 1m }] }
+  cluster:
+    # LOCAL: one copy of the app, nothing extra to run (live events, presence and rate limits in memory).
+    # REDIS: several copies behind a load balancer share them through Redis (set REDIS_HOST, and
+    # REDIS_HEALTH_ENABLED=true). Same API and WebSocket messages either way. Jobs lock in Postgres in both.
+    mode: ${CLUSTER_MODE:LOCAL}
+    # How long a crashed copy's viewers stay on the online lists (REDIS mode)
+    presence-ttl: 30s
   jobs:
     # Background jobs (sessions, reminders, invitations, attendance, chat partitions); tests turn this off
     enabled: true

@@ -14,10 +14,12 @@ public record MeResponse(
     @Schema(example = "Ada Okafor") String displayName,
     @Schema(description = "IANA timezone used for reminders and streaks", example = "Europe/London") String timezone,
     @Schema(description = "Reminder emails on for all rooms (each room also has its own setting)") boolean emailReminders,
-    @Schema(example = "2026-10-22T09:15:30Z") Instant createdAt
+    @Schema(example = "2026-10-22T09:15:30Z") Instant createdAt,
+    @Schema(description = "MyWatchMate staff only (else null): show the Review links screen", nullable = true,
+        example = "MODERATOR") User.StaffRole staffRole
 ) {
     public static MeResponse from(User user) {
         return new MeResponse(user.getId(), user.getEmail(), user.isEmailVerified(), user.getDisplayName(), user.getTimezone(),
-            user.isEmailReminders(), user.getCreatedAt());
+            user.isEmailReminders(), user.getCreatedAt(), user.getStaffRole());
     }
 }

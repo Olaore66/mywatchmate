@@ -100,6 +100,27 @@ class GlobalExceptionHandlerTest {
         assertThat(GlobalExceptionHandler.codeFor(HttpStatus.SERVICE_UNAVAILABLE)).isEqualTo("HTTP_503");
     }
 
+    @Test
+    void tooManyAttemptsSaysHowLongToWait() {
+        ResponseEntity<ProblemDetail> response = handler.handleApi(
+            new com.mywatchmate.abuse.TooManyAttempts(java.time.Duration.ofMillis(1500)));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(response.getHeaders().getFirst("Retry-After")).isEqualTo("2");
+        assertThat(response.getBody().getProperties()).containsEntry("code", "TOO_MANY_ATTEMPTS");
+        assertThat(handler.handleApi(ApiException.conflict("C", "m")).getHeaders().getFirst("Retry-After")).isNull();
+    }
+
+    @Test
+    void twoWritesAtOnceAreAConflictTheClientCanRetry() {
+        ResponseEntity<ProblemDetail> response = handler.handleConcurrentUpdate(
+            new org.springframework.orm.ObjectOptimisticLockingFailureException(Object.class, "id"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody().getProperties()).containsEntry("code", "CONCURRENT_UPDATE");
+        assertThat(response.getBody().getDetail()).contains("try again");
+    }
+
     @SuppressWarnings("unused")
     private void endpoint(Object request) {
         // Only here to give MethodArgumentNotValidException a real method parameter

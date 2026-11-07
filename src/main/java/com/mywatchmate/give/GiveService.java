@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +46,7 @@ public class GiveService {
     private final SpaceEvents events;
     private final GiveProperties props;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** A host puts up the room's giving link by hand. Problems are errors (nothing is recorded). */
     @Transactional
@@ -157,28 +159,37 @@ public class GiveService {
 
     /**
      * "This looks like a scam." Each person counts once per link (a user across all their rooms). Enough
-     * reports block the link everywhere until we review it, and take its prompts down at once.
+     * reports since the last review hold the link everywhere until staff review it, and take its prompts down
+     * at once. The count and the hold happen in the database, so reports arriving together all count and
+     * none can undo a reviewer's decision.
      */
     @Transactional
     public void report(AuthPrincipal principal, UUID spaceId, UUID promptId, String reason) {
         access.require(principal, spaceId);
         CueDetection prompt = promptIn(spaceId, promptId);
-        PaymentLink link = prompt.getPaymentLink();
+        UUID linkId = prompt.getPaymentLink().getId();
         String reporter = principal.isGuest() ? "guest:" + principal.participantId() : "user:" + principal.userId();
-        if (links.insertReport(link.getId(), reporter, prompt.getId(), blankToNull(reason)) == 0) {
+        if (links.insertReport(linkId, reporter, prompt.getId(), blankToNull(reason)) == 0) {
             return;
         }
-        link.setReportCount(link.getReportCount() + 1);
-        if (link.getReportCount() >= props.reportThreshold() && !link.isBlocked()) {
-            link.block(REPORTED_REASON);
-            Instant now = clock.instant();
-            detections.findOpenForLink(link.getId())
-                .forEach(p -> takeDown(p, p.getSession().getSpace().getId(), now));
+        links.countReport(linkId);
+        Instant now = clock.instant();
+        if (links.holdIfReported(linkId, props.reportThreshold(), REPORTED_REASON, now) == 1) {
+            takeDownEverywhere(linkId, now);
+            eventPublisher.publishEvent(new LinkHeld(linkId));
         }
+    }
+
+    /** Closes every open prompt showing this link, in every room. */
+    public void takeDownEverywhere(UUID linkId, Instant now) {
+        detections.findOpenForLink(linkId).forEach(p -> takeDown(p, p.getSession().getSpace().getId(), now));
     }
 
     /** Why this link mustn't be shown in this room, or null. */
     public String blockReason(UUID spaceId, PaymentLink link) {
+        if (link.getStatus() == PaymentLink.Status.HELD) {
+            return "UNDER_REVIEW";
+        }
         if (link.isBlocked()) {
             return "BLOCKED_EVERYWHERE";
         }
@@ -189,9 +200,11 @@ public class GiveService {
     }
 
     static String blockedMessage(String reason) {
-        return "BLOCKED_IN_ROOM".equals(reason)
-            ? "This payment link is blocked in this room."
-            : "This payment link has been blocked on MyWatchMate.";
+        return switch (reason) {
+            case "BLOCKED_IN_ROOM" -> "This payment link is blocked in this room.";
+            case "UNDER_REVIEW" -> "Viewers reported this payment link, and MyWatchMate is reviewing it.";
+            default -> "This payment link has been blocked on MyWatchMate.";
+        };
     }
 
     CueDetection promptIn(UUID spaceId, UUID promptId) {

@@ -78,7 +78,7 @@ class ChatServiceTest {
             lenient().when(access.require(principalOf(p), space.getId())).thenReturn(membership(p));
             lenient().when(participants.findById(p.getId())).thenReturn(Optional.of(p));
         }
-        lenient().when(limiter.tryAcquire(any())).thenReturn(true);
+        lenient().when(limiter.tryAcquire(any(UUID.class))).thenReturn(true);
         lenient().when(messages.saveAndFlush(any(ChatMessage.class))).thenAnswer(i -> i.getArgument(0));
         lenient().when(sessions.findFirstBySpaceIdAndStatus(space.getId(), WatchSession.Status.LIVE))
             .thenReturn(Optional.empty());

@@ -20,7 +20,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.mywatchmate.live.PresenceTracker;
+import com.mywatchmate.live.RoomPresence;
 import com.mywatchmate.live.dto.OnlineViewer;
 import com.mywatchmate.sessions.dto.SessionResponse;
 import com.mywatchmate.track.dto.AttendanceFinalised;
@@ -59,7 +59,7 @@ class AttendanceServiceTest {
     @Mock AttendanceRepository attendance;
     @Mock WatchSessionRepository sessions;
     @Mock ParticipantRepository participants;
-    @Mock PresenceTracker presence;
+    @Mock RoomPresence presence;
     @Mock SpaceAccess access;
     @Mock SpaceEvents events;
     @Mock StreakService streaks;

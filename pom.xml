@@ -131,9 +131,28 @@
 			<artifactId>spring-boot-starter-websocket-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- A throwaway Redis in Docker for the REDIS cluster-mode tests (skipped when Docker isn't running) -->
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>testcontainers-junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+			</resource>
+			<!-- The WebSocket events guide, served at /docs/realtime-events.md so the frontend always has the current one -->
+			<resource>
+				<directory>docs</directory>
+				<targetPath>docs</targetPath>
+				<includes>
+					<include>realtime-events.md</include>
+				</includes>
+			</resource>
+		</resources>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>

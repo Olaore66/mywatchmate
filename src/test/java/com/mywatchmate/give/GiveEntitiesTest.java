@@ -75,13 +75,20 @@ class GiveEntitiesTest {
     }
 
     @Test
-    void blockingALinkRecordsWhy() {
+    void heldAndBlockedLinksAreNotShownAndClearingForgetsWhy() {
         assertThat(link.isBlocked()).isFalse();
 
-        link.block("Reported by viewers; under review");
-
+        link.changeStatus(PaymentLink.Status.HELD, "Reported by viewers; under review", at(10));
         assertThat(link.isBlocked()).isTrue();
-        assertThat(link.getStatus()).isEqualTo(PaymentLink.Status.BLOCKED);
         assertThat(link.getBlockedReason()).isEqualTo("Reported by viewers; under review");
+        assertThat(link.getStatusChangedAt()).isEqualTo(at(10));
+
+        link.changeStatus(PaymentLink.Status.BLOCKED, "Confirmed", at(20));
+        assertThat(link.isBlocked()).isTrue();
+
+        link.changeStatus(PaymentLink.Status.ALLOWED, "ignored", at(30));
+        assertThat(link.isBlocked()).isFalse();
+        assertThat(link.getBlockedReason()).isNull();
+        assertThat(link.getStatusChangedAt()).isEqualTo(at(30));
     }
 }

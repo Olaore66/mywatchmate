@@ -40,6 +40,18 @@ class SlidingWindowLimiterTest {
     private final UUID bisi = UUID.randomUUID();
 
     @Test
+    void aRefusalSaysWhenTheOldestActionLeavesTheWindow() {
+        SlidingWindowLimiter limiter = new SlidingWindowLimiter(clock, 2, Duration.ofSeconds(10), 100);
+
+        assertThat(limiter.acquire("203.0.113.1")).isZero();
+        clock.advance(Duration.ofSeconds(3));
+        assertThat(limiter.acquire("203.0.113.1")).isZero();
+        assertThat(limiter.acquire("203.0.113.1")).as("the first is 3 s old").isEqualTo(Duration.ofSeconds(7));
+        clock.advance(Duration.ofSeconds(4));
+        assertThat(limiter.acquire("203.0.113.1")).isEqualTo(Duration.ofSeconds(3));
+    }
+
+    @Test
     void upToTheLimitPerWindowThenNo() {
         SlidingWindowLimiter limiter = new SlidingWindowLimiter(clock, 3, Duration.ofSeconds(5), 100);
 

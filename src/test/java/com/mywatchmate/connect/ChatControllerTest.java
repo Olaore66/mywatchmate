@@ -120,7 +120,7 @@ class ChatControllerTest {
     void muteForAWhileOrUntilUnmuted() throws Exception {
         UUID tunde = UUID.randomUUID();
         MemberMuted muted = new MemberMuted(
-            new ParticipantResponse(tunde, "Tunde", Participant.Role.MEMBER, false, T0), T0.plusSeconds(3600));
+            new ParticipantResponse(tunde, "Tunde", Participant.Role.MEMBER, false, T0, false, null), T0.plusSeconds(3600));
         when(chat.mute(AuthPrincipal.user(USER), SPACE, tunde, 60)).thenReturn(muted);
         when(chat.mute(AuthPrincipal.user(USER), SPACE, tunde, null)).thenReturn(new MemberMuted(muted.participant(), null));
 
