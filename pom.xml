@@ -150,6 +150,7 @@
 				<targetPath>docs</targetPath>
 				<includes>
 					<include>realtime-events.md</include>
+					<include>watch-sync.js</include>
 				</includes>
 			</resource>
 		</resources>

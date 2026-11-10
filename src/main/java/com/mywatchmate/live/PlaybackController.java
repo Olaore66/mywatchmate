@@ -4,6 +4,7 @@ import com.mywatchmate.auth.AuthPrincipal;
 import com.mywatchmate.config.OpenApiConfig;
 import com.mywatchmate.live.dto.PlaybackCommand;
 import com.mywatchmate.live.dto.PlaybackResponse;
+import com.mywatchmate.live.dto.ReportDurationRequest;
 import com.mywatchmate.live.dto.PresenceResponse;
 import com.mywatchmate.watch.SpaceAccess;
 import io.swagger.v3.oas.annotations.Operation;
@@ -66,7 +67,8 @@ public class PlaybackController {
     @PostMapping("/playback")
     @Operation(summary = "Play, pause or seek for everyone", description = """
         `{"action":"PLAY"}`, `{"action":"PAUSE"}` or `{"action":"SEEK","positionMs":754000}`.
-        SEEK keeps playing if it was playing. PLAY on a finished video starts it again.
+        SEEK keeps playing if it was playing. PLAY on a finished video starts it again. PLAY while playing and PAUSE
+        while paused change nothing: you get the current state back, with the same `version` and no event.
         Returns the new state; everyone gets it as PLAYBACK_CHANGED. At most 5 presses a second per person.""")
     @ApiResponse(responseCode = "200", description = "The new playback state")
     @ApiResponse(responseCode = "400", description = "VALIDATION_FAILED or POSITION_REQUIRED (SEEK without positionMs)",
@@ -84,6 +86,19 @@ public class PlaybackController {
     public PlaybackResponse command(@Parameter(hidden = true) @AuthenticationPrincipal AuthPrincipal principal,
                                     @PathVariable UUID spaceId, @Valid @RequestBody PlaybackCommand command) {
         return playback.command(principal, spaceId, command);
+    }
+
+    @PostMapping("/playback/duration")
+    @Operation(summary = "Tell the server how long the video is", description = """
+        YouTube doesn't give us a video's length, so without this the room can't tell when it has finished. Call once
+        when the player is ready and `durationMs` is null in the playback state, and you can control playback. Only the
+        first report for a video counts; the rest are ignored. Everyone gets the result as PLAYBACK_CHANGED.""")
+    @ApiResponse(responseCode = "200", description = "The playback state")
+    @ApiResponse(responseCode = "403", description = "FORBIDDEN_ROLE",
+        content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    public PlaybackResponse reportDuration(@Parameter(hidden = true) @AuthenticationPrincipal AuthPrincipal principal,
+                                           @PathVariable UUID spaceId, @Valid @RequestBody ReportDurationRequest request) {
+        return playback.reportDuration(principal, spaceId, request.contentId(), request.durationMs());
     }
 
     @GetMapping("/presence")

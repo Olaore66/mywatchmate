@@ -90,6 +90,14 @@ class ApiContractTests {
     }
 
     @Test
+    void theSyncClientIsPublicToo() throws Exception {
+        mvc.perform(get(DocsController.SYNC_PATH))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Content-Type", "text/javascript;charset=UTF-8"))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("createWatchSync")));
+    }
+
+    @Test
     void operationIdsAreControllerThenMethod() {
         assertThat(ApiContract.operationId("ChatController", "history")).isEqualTo("chatHistory");
         assertThat(ApiContract.operationId("GiveControllers", "show")).isEqualTo("giveShow");

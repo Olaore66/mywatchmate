@@ -150,6 +150,32 @@ class PlaybackStateTest {
     }
 
     @Test
+    void learningTheLengthKeepsThePositionTrueAndCounts() {
+        tenMinutes.setDurationSeconds(null);
+        PlaybackState state = playingFromStart();
+        long version = state.getVersion();
+
+        state.learnLength(tenMinutes, 300, at(100));
+
+        assertThat(state.lengthMs()).isEqualTo(300_000);
+        assertThat(state.getVersion()).isEqualTo(version + 1);
+        assertThat(state.positionAt(at(100))).isEqualTo(100_000);
+        assertThat(state.positionAt(at(200))).as("still moving").isEqualTo(200_000);
+        assertThat(state.hasEnded(at(300))).isTrue();
+    }
+
+    @Test
+    void learningALengthShorterThanTheRunningClockStopsAtTheEnd() {
+        tenMinutes.setDurationSeconds(null);
+        PlaybackState state = playingFromStart();
+
+        state.learnLength(tenMinutes, 300, at(100_000));
+
+        assertThat(state.positionAt(at(100_000))).isEqualTo(300_000);
+        assertThat(state.statusAt(at(100_000))).isEqualTo(PlaybackState.Status.PAUSED);
+    }
+
+    @Test
     void unknownLengthAndLiveStreamsNeverEnd() {
         tenMinutes.setDurationSeconds(null);
         PlaybackState unknown = playingFromStart();

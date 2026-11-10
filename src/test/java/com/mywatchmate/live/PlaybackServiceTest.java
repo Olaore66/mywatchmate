@@ -15,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -38,6 +39,7 @@ import com.mywatchmate.watch.dto.ContentResponse;
 import java.time.Instant;
 import java.util.Optional;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -89,6 +91,63 @@ class PlaybackServiceTest {
     }
 
     @Nested
+    class LearningTheLength {
+
+        private PlaybackResponse report(Participant who, UUID contentId, long durationMs) {
+            return service.reportDuration(principalOf(who), space.getId(), contentId, durationMs);
+        }
+
+        @Test
+        void aHostTeachesTheServerAYouTubeVideosLengthOnce() {
+            tenMinutes.setDurationSeconds(null);
+            callerIs(owner);
+
+            PlaybackResponse learned = report(owner, tenMinutes.getId(), 212_500);
+
+            assertThat(tenMinutes.getDurationSeconds()).as("rounded up").isEqualTo(213);
+            assertThat(learned.durationMs()).isEqualTo(213_000);
+            assertThat(learned.version()).isEqualTo(2);
+            verify(events).publish(space.getId(), SpaceEvent.Type.PLAYBACK_CHANGED, learned);
+
+            clearInvocations(events);
+            PlaybackResponse again = report(owner, tenMinutes.getId(), 999_000);
+            assertThat(again.durationMs()).as("the first report stands").isEqualTo(213_000);
+            verifyNoInteractions(events);
+        }
+
+        @Test
+        void aRoomThatRanPastTheEndStopsAtTheEndAndCanBePlayedAgain() {
+            tenMinutes.setDurationSeconds(null);
+            callerIs(owner);
+
+            PlaybackResponse learned = report(owner, tenMinutes.getId(), 30_000);
+
+            assertThat(learned.status()).isEqualTo(Status.PAUSED);
+            assertThat(learned.positionMs()).isEqualTo(30_000);
+            assertThat(press(owner, Action.PLAY, null).positionMs()).as("starts again").isZero();
+        }
+
+        @Test
+        void anOldVideoOrAKnownLengthIsIgnored() {
+            callerIs(owner);
+            assertThat(report(owner, tenMinutes.getId(), 5_000).durationMs()).isEqualTo(600_000);
+
+            tenMinutes.setDurationSeconds(null);
+            assertThat(report(owner, UUID.randomUUID(), 5_000).durationMs()).isNull();
+            verifyNoInteractions(events);
+        }
+
+        @Test
+        void onlyThoseWhoCanControlPlaybackMayReportIt() {
+            tenMinutes.setDurationSeconds(null);
+            callerIs(tunde);
+
+            assertThatThrownBy(() -> report(tunde, tenMinutes.getId(), 5_000)).isInstanceOf(ApiException.class);
+            assertThat(tenMinutes.getDurationSeconds()).isNull();
+        }
+    }
+
+    @Nested
     class Reading {
 
         @Test
@@ -133,6 +192,65 @@ class PlaybackServiceTest {
             assertThat(response.version()).isEqualTo(2);
             assertThat(response.updatedBy().displayName()).isEqualTo("Ada");
             verify(events).publish(space.getId(), SpaceEvent.Type.PLAYBACK_CHANGED, response);
+        }
+
+        @Test
+        void playWhilePlayingChangesNothingSoNobodyReSeeks() {
+            callerIs(owner);
+
+            PlaybackResponse response = press(owner, Action.PLAY, 12_345L);
+
+            assertThat(response.status()).isEqualTo(Status.PLAYING);
+            assertThat(response.positionMs()).as("where the room is, not what the player said").isEqualTo(60_000);
+            assertThat(response.version()).isEqualTo(1);
+            assertThat(state.getVersion()).isEqualTo(1);
+            verifyNoInteractions(events);
+        }
+
+        @Test
+        void pauseWhilePausedChangesNothing() {
+            callerIs(owner);
+            press(owner, Action.PAUSE, null);
+            clearInvocations(events);
+
+            PlaybackResponse response = press(owner, Action.PAUSE, null);
+
+            assertThat(response.version()).isEqualTo(2);
+            verifyNoInteractions(events);
+        }
+
+        @Test
+        void playAfterAPauseAndOnAFinishedVideoStillCount() {
+            callerIs(owner);
+            press(owner, Action.PAUSE, null);
+            assertThat(press(owner, Action.PLAY, null).version()).isEqualTo(3);
+
+            state.seek(600_000, NOW, owner);
+            PlaybackResponse restarted = press(owner, Action.PLAY, null);
+
+            assertThat(restarted.status()).isEqualTo(Status.PLAYING);
+            assertThat(restarted.positionMs()).as("a finished video starts again").isZero();
+        }
+
+        @Test
+        void aSeekToAboutWhereAPlayingRoomIsChangesNothing() {
+            callerIs(owner);
+
+            PlaybackResponse response = press(owner, Action.SEEK, 60_900L);
+
+            assertThat(response.positionMs()).isEqualTo(60_000);
+            assertThat(response.version()).isEqualTo(1);
+            verifyNoInteractions(events);
+
+            assertThat(press(owner, Action.SEEK, 61_000L).positionMs()).as("a real jump").isEqualTo(61_000);
+        }
+
+        @Test
+        void whilePausedEvenASmallSeekCounts() {
+            callerIs(owner);
+            press(owner, Action.PAUSE, null);
+
+            assertThat(press(owner, Action.SEEK, 60_500L).positionMs()).isEqualTo(60_500);
         }
 
         @Test

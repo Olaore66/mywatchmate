@@ -111,6 +111,18 @@ public class PlaybackState {
         change(hasEnded(now) ? Status.PAUSED : status, toMs, now, by);
     }
 
+    /**
+     * We've just learned the video's length. Whatever had been running past that point is pinned to where the
+     * video really is at this moment first, so the state stays true.
+     */
+    public void learnLength(ContentItem playing, int seconds, Instant now) {
+        long position = positionAt(now);
+        playing.setDurationSeconds(seconds);
+        positionMs = Math.min(position, seconds * 1000L);
+        positionAt = now;
+        version++;
+    }
+
     /** The video's length, when we know it. */
     public Long lengthMs() {
         if (content == null || content.isLive() || content.getDurationSeconds() == null) {

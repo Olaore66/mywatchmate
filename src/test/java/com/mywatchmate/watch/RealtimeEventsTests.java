@@ -159,6 +159,10 @@ class RealtimeEventsTests {
 
         BlockingQueue<Object> adaHears = new LinkedBlockingQueue<>();
         connect(ada, new LinkedBlockingQueue<>()).subscribe(eventsOf(spaceId), collectInto(adaHears, "PLAYBACK_CHANGED"));
+        // Whoever subscribes is told where the room is, straight away
+        DocumentContext snapshot = JsonPath.parse(next(adaHears));
+        assertThat(snapshot.read("$.data.status", String.class)).isEqualTo("PLAYING");
+        assertThat(snapshot.read("$.spaceId", String.class)).isEqualTo(spaceId);
         Thread.sleep(300);
 
         // Tunde (a member: friends rooms let members control playback) pauses for everyone
@@ -179,6 +183,48 @@ class RealtimeEventsTests {
         assertThat(room.read("$.playback.positionMs", Long.class)).isEqualTo(754_000L);
         assertThat(room.read("$.playback.version", Long.class)).isEqualTo(seeked.read("$.data.version", Long.class));
         assertThat(room.read("$.canControlPlayback", Boolean.class)).isTrue();
+    }
+
+    @Test
+    void someoneReconnectingCatchesUpOnWhatTheyMissedAndOnlyTheyAreTold() throws Exception {
+        String ada = register("Ada");
+        String spaceId = post("/api/v1/spaces", ada, """
+            {"title":"Movie night","audienceType":"FRIENDS","videoUrl":"https://youtu.be/dQw4w9WgXcQ"}""").read("$.id");
+        String invite = get("/api/v1/spaces/" + spaceId + "/invite", ada).read("$.inviteToken");
+        String bisi = post("/api/v1/auth/guest", null, "{\"inviteToken\":\"%s\",\"displayName\":\"Bisi\"}"
+            .formatted(invite)).read("$.accessToken");
+
+        BlockingQueue<Object> adaHears = new LinkedBlockingQueue<>();
+        connect(ada, new LinkedBlockingQueue<>()).subscribe(eventsOf(spaceId), collectInto(adaHears, "PLAYBACK_CHANGED"));
+        next(adaHears);
+        Thread.sleep(300);
+
+        // Bisi's phone is offline while the host pauses and jumps
+        post("/api/v1/spaces/" + spaceId + "/playback", ada, "{\"action\":\"PAUSE\"}");
+        DocumentContext jumped = post("/api/v1/spaces/" + spaceId + "/playback", ada, "{\"action\":\"SEEK\",\"positionMs\":754000}");
+        next(adaHears);
+        next(adaHears);
+
+        BlockingQueue<Object> bisiHears = new LinkedBlockingQueue<>();
+        connect(bisi, new LinkedBlockingQueue<>()).subscribe(eventsOf(spaceId), collectInto(bisiHears, "PLAYBACK_CHANGED"));
+
+        DocumentContext caughtUp = JsonPath.parse(next(bisiHears));
+        assertThat(caughtUp.read("$.type", String.class)).isEqualTo("PLAYBACK_CHANGED");
+        assertThat(caughtUp.read("$.data.status", String.class)).isEqualTo("PAUSED");
+        assertThat(caughtUp.read("$.data.positionMs", Long.class)).isEqualTo(754_000L);
+        assertThat(caughtUp.read("$.data.version", Long.class)).isEqualTo(jumped.read("$.version", Long.class));
+        assertThat(adaHears.poll(1, TimeUnit.SECONDS)).as("nobody else is bothered").isNull();
+    }
+
+    @Test
+    void aRoomWithNothingPlayingSendsNoSnapshot() throws Exception {
+        String ada = register("Ada");
+        String spaceId = post("/api/v1/spaces", ada, "{\"title\":\"Prayer\",\"audienceType\":\"DIASPORA\"}").read("$.id");
+
+        BlockingQueue<Object> adaHears = new LinkedBlockingQueue<>();
+        connect(ada, new LinkedBlockingQueue<>()).subscribe(eventsOf(spaceId), collectInto(adaHears, "PLAYBACK_CHANGED"));
+
+        assertThat(adaHears.poll(1, TimeUnit.SECONDS)).isNull();
     }
 
     @Test

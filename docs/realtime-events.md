@@ -285,32 +285,59 @@ function expectedPositionMs(p) {
 }
 ```
 
-### 3. Apply a state
+### 3. Use the sync client
 
-Sources of state: `playback` in `GET /spaces/{id}` (on opening the room), `GET /spaces/{id}/playback`
-(after reconnecting), and every `PLAYBACK_CHANGED` event.
+**[/docs/watch-sync.js](/docs/watch-sync.js)** does steps 3–5 for you: copy it into the app, wrap your player in the
+small adapter described at its top, and connect it up:
 
 ```js
-let current = null;
-function apply(p) {
-  if (current && p.version < current.version) return;  // an older message arriving late
-  current = p;
-  if (p.status === "STOPPED") return player.stop();
-  if (p.live) return p.status === "PLAYING" ? player.playAtLiveEdge() : player.pause();
-  player.seekTo(expectedPositionMs(p));
-  p.status === "PLAYING" ? player.play() : player.pause();
-}
+const sync = createWatchSync({
+  player,                                   // the adapter
+  serverNow,                                // from step 1
+  canControl: () => room.canControlPlayback,
+  send: (command) => api.post(`/spaces/${id}/playback`, command),
+});
+
+// every state, from anywhere
+api.get(`/spaces/${id}/playback`).then(sync.applyState);
+socket.on("PLAYBACK_CHANGED", (event) => sync.applyState(event.data));
+
+// from the player's own events
+youtube.onStateChange = ({ data }) => {
+  if (data === 1) sync.onPlayerEvent("PLAYING");
+  if (data === 2) sync.onPlayerEvent("PAUSED");
+  if (data === 3) sync.onPlayerEvent("BUFFERING");
+};
+
+setInterval(sync.tick, 250);
 ```
 
-If `contentId` differs from the video loaded, load `nowPlaying` first (a `NOW_PLAYING_CHANGED`
-always arrives just before the matching `PLAYBACK_CHANGED`).
+If `contentId` differs from the video loaded, load `nowPlaying` first (a `NOW_PLAYING_CHANGED` always arrives just
+before the matching `PLAYBACK_CHANGED`).
 
-### 4. Pressing the buttons
+**Connecting and reconnecting:** every time you subscribe to the room, the server immediately sends *that one
+connection* the room's current state, as a `PLAYBACK_CHANGED`. So a phone that lost signal catches up by itself. As a
+backstop, also call `GET /spaces/{id}/playback` every 30 s and pass the result to `sync.applyState`; states with the
+same `version` do nothing.
+
+**Video length:** `durationMs` is null for YouTube until someone reports it. When the player is ready, if
+`durationMs` is null and you can control playback, call `POST /spaces/{id}/playback/duration` with
+`{ "contentId": "…", "durationMs": 212000 }`. Without it, the server can't tell when the video finishes.
+
+### 4. The rules, if you write your own
+
+**A press is a person's intent, never a player's report.** A YouTube player reports "playing" every time it recovers
+from buffering, and reports "paused" for a moment while someone drags the bar. Sending those to the server makes
+every viewer re-seek, which makes them buffer, and the room keeps jumping over the same few seconds.
+
+- Send `PLAY` only if the room is paused. A `PLAYING` report while the room plays is a buffer ending: ignore it.
+- Wait about 400 ms before treating a `PAUSED` report as a press; if `BUFFERING` follows, it was a drag.
+- For a drag, send one `SEEK` when the player's time jumps by more than 2.5 s without you moving it.
+- Ignore the player's reports for about 1.5 s after you moved it yourself.
 
 Only when `canControlPlayback` is true in `GET /spaces/{id}` (owner and admins always; members when
 the room's `membersCanControlPlayback` is on, which is the default for COUPLE and FRIENDS rooms;
-guests never). Hide or disable the controls otherwise; a viewer pausing their own player is fine
-but won't affect anyone else, and the drift check will pull them back while the room plays.
+guests never). Hide or disable the controls otherwise.
 
 ```http
 POST /api/v1/spaces/{id}/playback
@@ -318,17 +345,25 @@ POST /api/v1/spaces/{id}/playback
 { "action": "SEEK", "positionMs": 754000 } // keeps playing if it was playing
 ```
 
-The response is the new state; apply it at once (it has the new `version`), and ignore your own
-`PLAYBACK_CHANGED` echo since it has the same `version`. Errors: `FORBIDDEN_ROLE`,
+The response is the new state; apply it at once, and ignore your own `PLAYBACK_CHANGED` echo since it has the same
+`version`. PLAY while playing, PAUSE while paused, and SEEK to within a second of where a playing room already is
+change nothing: you get the current state back with the same `version`, and no event. Errors: `FORBIDDEN_ROLE`,
 `NOTHING_PLAYING`, `LIVE_CANNOT_SEEK`, `POSITION_OUT_OF_RANGE`, `PLAYBACK_RATE_LIMITED`
-(more than 5 presses a second; for a seek bar, send only when the person lets go).
+(more than 5 presses a second).
 
-### 5. Stay in sync (drift)
+### 5. Staying in sync (drift)
 
-Every 3–5 seconds while `PLAYING`, compare the player's time with `expectedPositionMs(current)`.
-More than **1.5 s** apart → `seekTo` it. Don't correct smaller gaps; it makes playback stutter.
+**Never correct a player that's loading**, and never pause the room because one person is buffering. While the
+player is actually playing, compare it with where it should be:
 
-Never pause the room because one person is buffering. They catch up when their video loads.
+| How far off | What to do |
+|---|---|
+| Under 0.3 s | Nothing; play at normal speed |
+| 0.3 s to 3 s | Play at 1.25× if behind, 0.75× if ahead, until it's back. No jump, so nothing visibly skips |
+| Over 3 s | Jump, at most once every 8 s, aiming ahead by however far short the last jump landed |
+
+A jump lands on the keyframe before the target and then takes time to load, so it always lands short. Jumping again
+because of that is what makes a video loop on a slow connection.
 
 ### 6. Who's watching (and attendance)
 
