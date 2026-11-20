@@ -11,6 +11,7 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 
 from .api import BackendApi
+from .call_eyes import CallEyes
 from .config import Config
 from .decoder import find_qr_codes
 from .health import serve_health
@@ -29,14 +30,16 @@ async def run(config: Config) -> None:
 
     api = BackendApi(config.api_base, config.token)
     liveness = Liveness()
-    supervisor = Supervisor(api, config, decode, stream_frames, liveness=liveness)
+    supervisor = Supervisor(api, config, decode, stream_frames, liveness=liveness,
+                            call_frames=CallEyes(api) if config.watch_calls else None)
     health = await serve_health(config.health_port, supervisor.stats.as_dict)
     stop = asyncio.Event()
     for name in ("SIGINT", "SIGTERM"):
         with contextlib.suppress(NotImplementedError, AttributeError, ValueError):  # Windows has no signal handlers
             loop.add_signal_handler(getattr(signal, name), stop.set)
-    log.info("watching for %s as shard %d/%d, up to %d rooms, health on :%d",
-             config.api_base, config.shard, config.shards, config.max_rooms, config.health_port)
+    log.info("watching for %s as shard %d/%d, up to %d rooms, screen shares %s, health on :%d",
+             config.api_base, config.shard, config.shards, config.max_rooms, "on" if config.watch_calls else "off",
+             config.health_port)
     try:
         await supervisor.run(stop)
     finally:

@@ -47,7 +47,7 @@ async def decode(frame):
 
 
 def frames_of(*frames, then_wait=False):
-    async def source(url, width, height, fps):
+    async def source(url, width, height, fps, start_seconds=None, realtime=False):
         for frame in frames:
             yield frame
             await asyncio.sleep(0)
@@ -83,7 +83,7 @@ async def test_only_live_direct_streams_are_watched():
     await supervisor.reconcile_once()
 
     assert supervisor.stats.rooms == 0
-    assert supervisor.stats.skipped_sources == {"YOUTUBE": 1, "RECORDING": 1, "NOTHING_PLAYING": 1}
+    assert supervisor.stats.skipped_sources == {"YOUTUBE_NO_SCREEN_SHARE": 1, "PAUSED": 1, "NOTHING_PLAYING": 1}
 
 
 async def test_a_room_that_ends_loses_its_watcher_and_a_new_one_gets_one():
@@ -120,7 +120,7 @@ async def test_a_failing_stream_is_retried_later_not_straight_away():
     room = live()
     now = [0.0]
 
-    def broken(url, width, height, fps):
+    def broken(url, width, height, fps, start_seconds=None, realtime=False):
         async def gen():
             raise ConnectionError("stream down")
             yield  # noqa: unreachable, makes this a generator

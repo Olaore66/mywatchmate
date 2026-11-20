@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 
 import httpx
@@ -14,17 +15,41 @@ RETRIES = 3
 
 
 @dataclass(frozen=True)
+class Playback:
+    """Where the room's video was when we asked (received_at: our own monotonic clock at that moment)."""
+    status: str               # PLAYING, PAUSED or STOPPED
+    position_ms: int
+    duration_ms: int | None
+    version: int
+    received_at: float
+
+    def position_now_ms(self, now: float) -> float:
+        if self.status != "PLAYING":
+            return float(self.position_ms)
+        position = self.position_ms + (now - self.received_at) * 1000
+        return min(position, self.duration_ms) if self.duration_ms else position
+
+    @staticmethod
+    def from_json(data: dict | None, received_at: float) -> "Playback | None":
+        if not data:
+            return None
+        return Playback(str(data.get("status")), int(data.get("positionMs") or 0), data.get("durationMs"),
+                        int(data.get("version") or 0), received_at)
+
+
+@dataclass(frozen=True)
 class LiveSession:
     session_id: str
     space_id: str
     source: str | None        # YOUTUBE, VIMEO, URL, LIVESTREAM, or None when nothing is playing
     stream_url: str | None    # set only for streams we may read ourselves
     screen_share: bool
+    playback: Playback | None = None
 
     @staticmethod
-    def from_json(data: dict) -> "LiveSession":
+    def from_json(data: dict, received_at: float = 0.0) -> "LiveSession":
         return LiveSession(str(data["sessionId"]), str(data["spaceId"]), data.get("source"), data.get("streamUrl"),
-                           bool(data.get("screenShare")))
+                           bool(data.get("screenShare")), Playback.from_json(data.get("playback"), received_at))
 
 
 class BackendApi:
@@ -36,7 +61,15 @@ class BackendApi:
     async def live_sessions(self) -> list[LiveSession]:
         response = await self._client.get(f"{self._base}/api/v1/internal/live-sessions", headers=self._headers)
         response.raise_for_status()
-        return [LiveSession.from_json(item) for item in response.json()]
+        received_at = time.monotonic()
+        return [LiveSession.from_json(item, received_at) for item in response.json()]
+
+    async def watch_token(self, session_id: str) -> dict:
+        """A hidden, view-only way into a live session's call: {url, token, roomName, identity, expiresAt}."""
+        response = await self._client.post(f"{self._base}/api/v1/internal/sessions/{session_id}/watch-token",
+                                           headers=self._headers)
+        response.raise_for_status()
+        return response.json()
 
     async def report_cue(self, session_id: str, raw_value: str) -> dict | None:
         """Sends one cue. Retries network trouble and 5xx/429 with a growing wait; other refusals are final.

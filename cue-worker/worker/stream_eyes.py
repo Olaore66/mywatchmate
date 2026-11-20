@@ -10,11 +10,17 @@ import asyncio
 from collections.abc import AsyncIterator
 
 
-def ffmpeg_command(url: str, width: int, height: int, fps: float) -> list[str]:
+def ffmpeg_command(url: str, width: int, height: int, fps: float, start_seconds: float | None = None,
+                   realtime: bool = False) -> list[str]:
+    """A live stream is read as it comes. A recording is read from where the room is (start_seconds) at real-time pace
+    (realtime), so a QR code is seen when the room sees it, not when the file is downloaded."""
+    position = ["-ss", f"{start_seconds:.3f}"] if start_seconds else []
+    pace = ["-re"] if realtime else []
     return [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
         "-rw_timeout", "15000000",                     # give up on a stream silent for 15 s (the supervisor retries)
         "-skip_frame", "nokey",
+        *pace, *position,
         "-i", url,
         "-an", "-sn",                                  # no audio or subtitles
         "-vf", f"fps={fps},scale={width}:{height}:force_original_aspect_ratio=decrease,"
@@ -23,10 +29,11 @@ def ffmpeg_command(url: str, width: int, height: int, fps: float) -> list[str]:
     ]
 
 
-async def stream_frames(url: str, width: int, height: int, fps: float) -> AsyncIterator[bytes]:
+async def stream_frames(url: str, width: int, height: int, fps: float, start_seconds: float | None = None,
+                        realtime: bool = False) -> AsyncIterator[bytes]:
     """Yields frames until the stream ends or fails; always stops ffmpeg when it's done."""
     process = await asyncio.create_subprocess_exec(
-        *ffmpeg_command(url, width, height, fps),
+        *ffmpeg_command(url, width, height, fps, start_seconds, realtime),
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
     size = width * height
     try:

@@ -20,6 +20,7 @@ class Config:
     dedupe_minutes: float = 10.0  # the same code in the same session is reported once per this long
     health_port: int = 8090
     decoders: int = 0            # decoding processes; 0 = one per CPU
+    watch_calls: bool = True     # read screen shares in YouTube/Vimeo rooms' calls
 
     @staticmethod
     def from_env(env: dict[str, str] | None = None) -> "Config":
@@ -39,6 +40,7 @@ class Config:
             dedupe_minutes=float(env.get("DEDUPE_MINUTES", "10")),
             health_port=int(env.get("HEALTH_PORT", "8090")),
             decoders=int(env.get("DECODERS", "0")),
+            watch_calls=env.get("WATCH_CALLS", "true").strip().lower() not in {"false", "0", "no"},
         )
 
 

@@ -8,6 +8,7 @@ import com.mywatchmate.connect.call.LiveKitTokens;
 import com.mywatchmate.connect.call.dto.CallParticipant;
 import com.mywatchmate.give.dto.LiveSessionFeed;
 import com.mywatchmate.give.dto.WatchTokenResponse;
+import com.mywatchmate.live.PlaybackService;
 import com.mywatchmate.watch.ContentItem;
 import com.mywatchmate.watch.WatchSession;
 import com.mywatchmate.watch.WatchSessionRepository;
@@ -40,6 +41,7 @@ public class WorkerFeedService {
     private final LiveKitProperties livekitProps;
     private final LiveKitRoomClient livekit;
     private final LiveKitTokens tokens;
+    private final PlaybackService playback;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -52,7 +54,7 @@ public class WorkerFeedService {
         ContentItem.Source source = playing == null ? null : playing.getSource();
         String streamUrl = source != null && READABLE.contains(source) ? playing.getExternalUrl() : null;
         return new LiveSessionFeed(session.getId(), session.getSpace().getId(), session.getStartedAt(), source, streamUrl,
-            screenShareOn(session.getSpace().getId()));
+            screenShareOn(session.getSpace().getId()), playback.current(session.getSpace()));
     }
 
     /** Only asked of LiveKit when calls are on; a LiveKit hiccup just means "not now" (asked again next round). */

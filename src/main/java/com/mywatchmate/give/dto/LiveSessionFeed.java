@@ -1,5 +1,6 @@
 package com.mywatchmate.give.dto;
 
+import com.mywatchmate.live.dto.PlaybackResponse;
 import com.mywatchmate.watch.ContentItem;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
@@ -15,6 +16,9 @@ public record LiveSessionFeed(
     @Schema(description = "A stream the worker may read itself (URL and LIVESTREAM only); null for YouTube and Vimeo, "
         + "which must not be downloaded", nullable = true) String streamUrl,
     @Schema(description = "Someone is sharing their screen in the room's call: the worker can watch it with a watch token")
-    boolean screenShare
+    boolean screenShare,
+    @Schema(description = "Where the room's video is (as for the apps): a recording is read from here, in real time, and "
+        + "read again from the new spot whenever `version` changes; nothing is read while PAUSED or STOPPED")
+    PlaybackResponse playback
 ) {
 }

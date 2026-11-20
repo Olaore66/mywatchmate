@@ -49,6 +49,22 @@ async def test_the_qr_code_is_found_only_while_it_is_on_screen(service_video):
     assert not found[0] and not found[-1]
 
 
+async def test_reading_can_start_where_the_room_is(service_video):
+    """The code shows from 4 s to 9 s: starting at 5 s, it's there straight away."""
+    frames = [f async for f in stream_frames(str(service_video), WIDTH, HEIGHT, 1.0, start_seconds=5.0)]
+
+    assert find_qr_codes(frames[0], WIDTH, HEIGHT) == [LINK]
+    assert len(frames) <= 8
+
+
+def test_recordings_are_read_in_real_time_from_a_position():
+    cmd = ffmpeg_command("https://cdn/sermon.mp4", WIDTH, HEIGHT, 1.0, start_seconds=602.5, realtime=True)
+
+    assert cmd[cmd.index("-ss") + 1] == "602.500"
+    assert cmd.index("-re") < cmd.index("-i") and cmd.index("-ss") < cmd.index("-i")
+    assert "-ss" not in ffmpeg_command("https://cdn/live.m3u8", WIDTH, HEIGHT, 1.0)
+
+
 def test_the_command_reads_keyframes_only_and_never_audio():
     cmd = ffmpeg_command("https://cdn/live.m3u8", WIDTH, HEIGHT, 1.0)
 

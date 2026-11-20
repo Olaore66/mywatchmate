@@ -51,7 +51,9 @@ class InternalWorkerFlowTests {
             .andExpect(jsonPath("$[?(@.sessionId == '" + streamSession + "')].spaceId").value(hasItem(streamRoom)))
             .andExpect(jsonPath("$[?(@.sessionId == '" + youtubeSession + "')].source").value(hasItem("YOUTUBE")))
             .andExpect(jsonPath("$[?(@.sessionId == '" + youtubeSession + "')].streamUrl").value(hasItem((Object) null)))
-            .andExpect(jsonPath("$[?(@.sessionId == '" + youtubeSession + "')].screenShare").value(hasItem(false)));
+            .andExpect(jsonPath("$[?(@.sessionId == '" + youtubeSession + "')].screenShare").value(hasItem(false)))
+            .andExpect(jsonPath("$[?(@.sessionId == '" + streamSession + "')].playback.status").value(hasItem("PLAYING")))
+            .andExpect(jsonPath("$[?(@.sessionId == '" + streamSession + "')].playback.version").exists());
 
         // Calls aren't set up in tests: no way into a call to watch
         mvc.perform(post("/api/v1/internal/sessions/" + youtubeSession + "/watch-token").header("X-Service-Token", WORKER))

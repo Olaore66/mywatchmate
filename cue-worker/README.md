@@ -13,14 +13,23 @@ the room a Give card, and (for verified churches) opens Payaza's checkout inside
   960x540 grey. Each room costs a small slice of a CPU.
 - **Decoder:** zxing-cpp finds QR codes, in a pool of processes (one per CPU) so image work never holds anything up.
   While a frame is being read, newer ones replace each other: the latest frame always wins, so there's no backlog.
+- **Shared readers:** rooms watching the same live stream (say, 50 rooms on one church's morning service) share a
+  single reader and decode each frame once; every room still gets, dedupes and reports its own cue. A reader starts
+  with the first room on its stream and stops with the last. Recordings and calls are never shared: each room is at
+  its own place in the video or has its own call. `/health` shows `rooms` and `readers` side by side.
 - **Dedupe:** the same code in the same session is reported once per 10 minutes (the backend checks again).
 - **Shards:** `WORKER_SHARD=1/3` makes this worker take one third of the rooms (by session id), so more workers
   simply means more capacity, with no room watched twice.
 
-**Watches today:** live streams. A room's direct link (`.m3u8`) is checked first: a live HLS playlist has no
-`#EXT-X-ENDLIST` line (the backend can't tell from the link; the stream can). **Next:** recordings and `.mp4` files
-(following the room's play/pause/seek), then YouTube/Vimeo rooms through a screen share in the room's call (a hidden,
-view-only viewer). YouTube is never downloaded. `/health` lists rooms skipped and why.
+**What it watches**, depending on the room:
+
+| Room plays | How the worker sees it |
+|---|---|
+| A live stream (direct `.m3u8` link) | Reads the stream. Live is decided from the playlist itself: no `#EXT-X-ENDLIST` line |
+| A recording or `.mp4` (direct link) | Follows the room: reads from where the room is, in real time; a seek restarts it at the new place, a pause stops it |
+| YouTube or Vimeo | Never downloaded. When the host shares their screen in the room's call, the worker joins as a **hidden, view-only** viewer (nobody sees it; it can't speak, show video or send anything) and reads **only the screen share** |
+
+`/health` lists rooms skipped and why (`PAUSED`, `YOUTUBE_NO_SCREEN_SHARE`, ...).
 
 ## Run it on your laptop (against staging)
 
@@ -49,6 +58,7 @@ Then open http://localhost:8090/health to see rooms watched, frames, codes found
 | `DEDUPE_MINUTES` | `10` | The same code in the same session is reported once per this long |
 | `DECODERS` | one per CPU | Decoding processes |
 | `HEALTH_PORT` | `8090` | Where `/health` answers |
+| `WATCH_CALLS` | `true` | `false` stops it joining calls to read screen shares |
 | `LOG_LEVEL` | `INFO` | `DEBUG` for more |
 
 ## Tests
@@ -65,4 +75,32 @@ They use real QR images, a fake backend, and (if ffmpeg is installed) a real vid
 ```powershell
 docker build -t mywatchmate-cue-worker .
 docker run --rm -e INTERNAL_CUE_TOKEN=$env:INTERNAL_CUE_TOKEN -p 8090:8090 mywatchmate-cue-worker
+```
+
+## Staging
+
+The worker runs on the staging server as a second container (`cue-worker`) next to the app, on the same docker
+network, talking to it directly at `http://app:8081`. It is given **only** its token (not the database password or
+any other app secret) and is capped at 1 CPU and 512 MB, so it can never slow the app down. From the project root, in
+Git Bash:
+
+```bash
+deploy/release-worker.sh
+```
+
+It builds this folder's image, pushes it to the existing ECR repository as `worker-<commit>` and `worker-latest`, and
+starts it on the server through SSM. To see it working there:
+
+```bash
+aws ssm start-session --target <instance-id>    # then: sudo docker logs --tail 50 cue-worker
+```
+
+## Load test
+
+`loadtest/load_test.py` runs the real supervisor, ffmpeg readers and decoders against N live rooms (a pretend backend
+records the cues) and reports frames per second, dropped frames, time to each cue, CPU and memory:
+
+```powershell
+.\.venv\Scripts\python -m pip install psutil
+.\.venv\Scripts\python loadtest\load_test.py --rooms 50 --seconds 90
 ```

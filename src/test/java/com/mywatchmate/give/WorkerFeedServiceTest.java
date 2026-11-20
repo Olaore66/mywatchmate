@@ -17,6 +17,9 @@ import com.mywatchmate.connect.call.LiveKitTokens;
 import com.mywatchmate.connect.call.dto.CallParticipant;
 import com.mywatchmate.give.dto.LiveSessionFeed;
 import com.mywatchmate.give.dto.WatchTokenResponse;
+import com.mywatchmate.live.PlaybackService;
+import com.mywatchmate.live.PlaybackState;
+import com.mywatchmate.live.dto.PlaybackResponse;
 import com.mywatchmate.watch.ContentItem;
 import com.mywatchmate.watch.Space;
 import com.mywatchmate.watch.WatchSession;
@@ -38,12 +41,13 @@ class WorkerFeedServiceTest {
     @Mock WatchSessionRepository sessions;
     @Mock LiveKitRoomClient livekit;
     @Mock LiveKitTokens tokens;
+    @Mock PlaybackService playback;
 
     private final LiveKitProperties callsOn = new LiveKitProperties("wss://calls.example", "key", "a-secret-of-at-least-32-characters!", Duration.ofMinutes(10));
     private final LiveKitProperties callsOff = new LiveKitProperties("", "", "", Duration.ofMinutes(10));
 
     private WorkerFeedService service(LiveKitProperties props) {
-        return new WorkerFeedService(sessions, props, livekit, tokens, clockAt(MONDAY_MIDNIGHT));
+        return new WorkerFeedService(sessions, props, livekit, tokens, playback, clockAt(MONDAY_MIDNIGHT));
     }
 
     private WatchSession liveRoomPlaying(ContentItem.Source source, String url) {
@@ -82,6 +86,17 @@ class WorkerFeedServiceTest {
         assertThat(feed.get(1).screenShare()).isTrue();
         assertThat(feed.get(2).source()).isNull();
         assertThat(feed.get(2).screenShare()).isFalse();
+    }
+
+    @Test
+    void eachRoomComesWithWhereItsVideoIs() {
+        WatchSession url = liveRoomPlaying(ContentItem.Source.URL, "https://cdn.church.org/sunday.mp4");
+        when(sessions.findLiveWithContent()).thenReturn(List.of(url));
+        PlaybackResponse paused = new PlaybackResponse(UUID.randomUUID(), PlaybackState.Status.PAUSED, 754_000,
+            MONDAY_MIDNIGHT.toEpochMilli(), 3_600_000L, false, 7, null);
+        when(playback.current(url.getSpace())).thenReturn(paused);
+
+        assertThat(service(callsOff).liveSessions().getFirst().playback()).isEqualTo(paused);
     }
 
     @Test

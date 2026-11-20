@@ -17,27 +17,31 @@ import httpx
 log = logging.getLogger(__name__)
 
 NOT_LIVE_RECHECK_SECONDS = 300.0
+LIVE_RECHECK_SECONDS = 60.0
 
 
 class Liveness:
     def __init__(self, client: httpx.AsyncClient | None = None, clock: Callable[[], float] = time.monotonic) -> None:
-        # Our own test streams use a self-signed certificate; we only read public playlists, never send anything
-        self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=4.0), follow_redirects=True,
-                                                   verify=False)
+        self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=4.0), follow_redirects=True)
         self._clock = clock
         self._not_live_until: dict[str, float] = {}
+        self._live_until: dict[str, float] = {}
 
     async def is_live(self, url: str) -> bool:
         if not url.lower().split("?", 1)[0].endswith(".m3u8"):
             return False
         if self._clock() < self._not_live_until.get(url, 0.0):
             return False
+        if self._clock() < self._live_until.get(url, 0.0):
+            return True
         try:
             live = await self._check(url)
         except (httpx.HTTPError, ValueError) as e:
             log.info("couldn't read playlist %s: %s", url, e)
             live = False
-        if not live:
+        if live:
+            self._live_until[url] = self._clock() + LIVE_RECHECK_SECONDS
+        else:
             self._not_live_until[url] = self._clock() + NOT_LIVE_RECHECK_SECONDS
         return live
 
