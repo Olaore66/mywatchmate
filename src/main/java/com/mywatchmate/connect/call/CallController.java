@@ -53,7 +53,9 @@ public class CallController {
 
     @PostMapping("/join")
     @Operation(summary = "Get a pass to join the room's call", description = "Returns the LiveKit URL and a join "
-        + "token (valid 10 minutes to connect; the connection itself lasts as long as needed).")
+        + "token (valid 10 minutes to connect; the connection itself lasts as long as needed). Share screens with "
+        + "`room.localParticipant.setScreenShareEnabled(true)` so the track is marked as a screen share: that's how "
+        + "the room shows `screenSharing` and how the AI spots giving QR codes in YouTube/Vimeo rooms.")
     @ApiResponse(responseCode = "200", description = "Connect with room.connect(url, token)")
     @ApiResponse(responseCode = "409", description = "SPACE_ARCHIVED",
         content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))

@@ -202,7 +202,30 @@ so tiles can be matched to members. `CALL_UPDATED` (here) says who's in the call
 UI; inside the call itself, the SDK's own events are faster. Someone removed from the room is disconnected
 from its call at once.
 
+**Share screens with the SDK's screen-share call**: `room.localParticipant.setScreenShareEnabled(true)`. LiveKit then
+marks the track as a screen share, which is how the room shows "sharing" (`screenSharing` in `CALL_UPDATED`) and how
+the AI finds giving QR codes in YouTube/Vimeo rooms (see "How the AI spots a QR code" below). A screen published
+another way (say, as a camera track) works as video but is invisible to both.
+
 ## Giving
+
+### How the AI spots a QR code
+
+While a session is live, the AI watches the room's video about once a second for a giving QR code and, when it finds
+a real (unblocked) payment link, the room gets a Give card (`GIVE_PROMPT`). Nothing to call for it; it depends only on
+the room working as already documented:
+
+| The room plays | What the AI watches | What the frontend must already do |
+|---|---|---|
+| A live stream (direct link) | The stream itself | Nothing more |
+| A recording or `.mp4` (direct link) | The video, from where the room is: it follows play, pause and seek | Send play/pause/seek as usual, and `POST /playback/duration` when the player knows the length (that's how it knows the video has finished) |
+| YouTube or Vimeo (never downloaded) | **Only** a screen share in the room's call, while someone shares | Share with `setScreenShareEnabled(true)` (see Calls). Optionally tip hosts: "Share your screen so giving QR codes are spotted" |
+
+In a call, the AI joins as a **hidden, view-only** viewer: LiveKit never shows it to anyone, it can't speak, show
+video or send anything, it receives only the screen share (no cameras, no microphones), and it never appears in
+`GET /spaces/{id}/call` or `CALL_UPDATED`. It leaves when the share stops.
+
+### The Give card
 
 During a live session a **Give card** can appear (`GIVE_PROMPT`). Someone opening the room late gets it from
 `GET /spaces/{id}/give/prompts/current` (204 when nothing is up). Show it until `expiresAt` or

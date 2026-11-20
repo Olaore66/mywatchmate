@@ -92,7 +92,8 @@ public class PlaybackController {
     @Operation(summary = "Tell the server how long the video is", description = """
         YouTube doesn't give us a video's length, so without this the room can't tell when it has finished. Call once
         when the player is ready and `durationMs` is null in the playback state, and you can control playback. Only the
-        first report for a video counts; the rest are ignored. Everyone gets the result as PLAYBACK_CHANGED.""")
+        first report for a video counts; the rest are ignored. Everyone gets the result as PLAYBACK_CHANGED.
+        The AI that spots giving QR codes uses it too, to know when a recording has finished.""")
     @ApiResponse(responseCode = "200", description = "The playback state")
     @ApiResponse(responseCode = "403", description = "FORBIDDEN_ROLE",
         content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
