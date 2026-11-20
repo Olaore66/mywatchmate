@@ -63,6 +63,14 @@ public interface WatchSessionRepository extends JpaRepository<WatchSession, UUID
         """, nativeQuery = true)
     List<WatchSession> lockDueToStart(Instant now, int limit);
 
+    /** Live sessions with their room and what it's playing (for the AI cue worker). */
+    @Query("""
+        select s from WatchSession s join fetch s.space sp left join fetch sp.currentContent
+        where s.status = com.mywatchmate.watch.WatchSession.Status.LIVE
+        order by s.startedAt
+        """)
+    List<WatchSession> findLiveWithContent();
+
     /** Live sessions, locked so a second server running the attendance job skips them. */
     @Query(value = "select * from watch_sessions where status = 'LIVE' for update skip locked", nativeQuery = true)
     List<WatchSession> lockLive();

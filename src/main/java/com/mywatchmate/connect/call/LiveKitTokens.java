@@ -53,6 +53,28 @@ public class LiveKitTokens {
             .build());
     }
 
+    /**
+     * For our AI cue worker: join one room's call hidden (never in anyone's participant list) and only receive, so
+     * it can read a shared screen. It can't send camera, mic or data.
+     */
+    public String watchToken(String room, String identity, Instant now) {
+        Map<String, Object> video = new LinkedHashMap<>();
+        video.put("room", room);
+        video.put("roomJoin", true);
+        video.put("canSubscribe", true);
+        video.put("canPublish", false);
+        video.put("canPublishData", false);
+        video.put("hidden", true);
+        return sign(new JWTClaimsSet.Builder()
+            .issuer(props.apiKey())
+            .subject(identity)
+            .notBeforeTime(Date.from(now))
+            .expirationTime(Date.from(now.plus(props.tokenTtl())))
+            .claim("name", "MyWatchMate")
+            .claim("video", video)
+            .build());
+    }
+
     /** For our backend's own requests to LiveKit about one room (who's in it, remove someone). */
     public String adminToken(String room, Instant now) {
         return sign(new JWTClaimsSet.Builder()

@@ -37,7 +37,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest({GiveController.class, GiftController.class, InternalCueController.class})
-@Import(WebLayerTestConfig.class)
+@Import({WebLayerTestConfig.class, ServiceToken.class})
 class GiveControllersTest {
 
     private static final UUID USER = UUID.randomUUID();

@@ -62,6 +62,17 @@ class LiveKitTokensTest {
     }
 
     @Test
+    void theCueWorkersTokenIsHiddenAndCanOnlyWatch() throws Exception {
+        JWTClaimsSet claims = verified(tokens.watchToken("space-1", "cue-worker", MONDAY_MIDNIGHT));
+
+        assertThat(claims.getSubject()).isEqualTo("cue-worker");
+        assertThat(claims.getExpirationTime().toInstant()).isEqualTo(MONDAY_MIDNIGHT.plus(Duration.ofMinutes(10)));
+        assertThat(claims.getJSONObjectClaim("video")).containsAllEntriesOf(Map.of(
+            "room", "space-1", "roomJoin", true, "canSubscribe", true, "canPublish", false, "canPublishData", false,
+            "hidden", true));
+    }
+
+    @Test
     void anAdminTokenIsShortAndForOneRoom() throws Exception {
         JWTClaimsSet claims = verified(tokens.adminToken("space-1", MONDAY_MIDNIGHT));
 
