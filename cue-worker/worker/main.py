@@ -14,6 +14,7 @@ from .api import BackendApi
 from .config import Config
 from .decoder import find_qr_codes
 from .health import serve_health
+from .liveness import Liveness
 from .stream_eyes import stream_frames
 from .supervisor import Supervisor
 
@@ -27,7 +28,8 @@ async def run(config: Config) -> None:
         return await loop.run_in_executor(pool, partial(find_qr_codes, frame, config.frame_width, config.frame_height))
 
     api = BackendApi(config.api_base, config.token)
-    supervisor = Supervisor(api, config, decode, stream_frames)
+    liveness = Liveness()
+    supervisor = Supervisor(api, config, decode, stream_frames, liveness=liveness)
     health = await serve_health(config.health_port, supervisor.stats.as_dict)
     stop = asyncio.Event()
     for name in ("SIGINT", "SIGTERM"):
@@ -40,6 +42,7 @@ async def run(config: Config) -> None:
     finally:
         health.close()
         await api.close()
+        await liveness.close()
         pool.shutdown(cancel_futures=True)
 
 

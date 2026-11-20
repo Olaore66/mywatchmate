@@ -11,6 +11,13 @@ from worker.supervisor import Supervisor
 LINK = "https://business.payaza.africa/pay/nsppd"
 
 
+class FakeLiveness:
+    """Every .m3u8 is live; anything else is a recording."""
+
+    async def is_live(self, url):
+        return url.endswith(".m3u8")
+
+
 class FakeBackend:
     def __init__(self, sessions):
         self.sessions = sessions
@@ -27,7 +34,7 @@ class FakeBackend:
         return {"status": "SHOWN"}
 
 
-def live(source="LIVESTREAM", url="https://cdn/live.m3u8"):
+def live(source="URL", url="https://cdn/live.m3u8"):
     return LiveSession(str(uuid.uuid4()), str(uuid.uuid4()), source, url, False)
 
 
@@ -58,7 +65,7 @@ async def test_a_qr_code_in_a_live_room_is_reported_once():
     room = live()
     backend = FakeBackend([room])
     stream = frames_of(blank_frame(), frame_with_qr(LINK), frame_with_qr(LINK), then_wait=True)
-    supervisor = Supervisor(backend, config(), decode, stream)
+    supervisor = Supervisor(backend, config(), decode, stream, liveness=FakeLiveness())
 
     await supervisor.reconcile_once()
     await settle()
@@ -69,20 +76,20 @@ async def test_a_qr_code_in_a_live_room_is_reported_once():
     await supervisor.stop_all()
 
 
-async def test_only_readable_streams_are_watched():
+async def test_only_live_direct_streams_are_watched():
     backend = FakeBackend([live("YOUTUBE", None), live("URL", "https://cdn/file.mp4"), live(None, None)])
-    supervisor = Supervisor(backend, config(), decode, frames_of(then_wait=True))
+    supervisor = Supervisor(backend, config(), decode, frames_of(then_wait=True), liveness=FakeLiveness())
 
     await supervisor.reconcile_once()
 
     assert supervisor.stats.rooms == 0
-    assert supervisor.stats.skipped_sources == {"YOUTUBE": 1, "URL": 1, "NOTHING_PLAYING": 1}
+    assert supervisor.stats.skipped_sources == {"YOUTUBE": 1, "RECORDING": 1, "NOTHING_PLAYING": 1}
 
 
 async def test_a_room_that_ends_loses_its_watcher_and_a_new_one_gets_one():
     first, second = live(), live()
     backend = FakeBackend([first])
-    supervisor = Supervisor(backend, config(), decode, frames_of(then_wait=True))
+    supervisor = Supervisor(backend, config(), decode, frames_of(then_wait=True), liveness=FakeLiveness())
     await supervisor.reconcile_once()
 
     backend.sessions = [second]
@@ -96,14 +103,14 @@ async def test_shards_split_rooms_and_the_cap_holds():
     rooms = [live() for _ in range(20)]
     taken = set()
     for shard in range(3):
-        supervisor = Supervisor(FakeBackend(rooms), config(shard=shard, shards=3), decode, frames_of(then_wait=True))
+        supervisor = Supervisor(FakeBackend(rooms), config(shard=shard, shards=3), decode, frames_of(then_wait=True), liveness=FakeLiveness())
         await supervisor.reconcile_once()
         assert not taken & set(supervisor._watchers), "no room is watched twice"
         taken |= set(supervisor._watchers)
         await supervisor.stop_all()
     assert taken == {r.session_id for r in rooms}
 
-    capped = Supervisor(FakeBackend(rooms), config(max_rooms=5), decode, frames_of(then_wait=True))
+    capped = Supervisor(FakeBackend(rooms), config(max_rooms=5), decode, frames_of(then_wait=True), liveness=FakeLiveness())
     await capped.reconcile_once()
     assert capped.stats.rooms == 5
     await capped.stop_all()
@@ -119,7 +126,7 @@ async def test_a_failing_stream_is_retried_later_not_straight_away():
             yield  # noqa: unreachable, makes this a generator
         return gen()
 
-    supervisor = Supervisor(FakeBackend([room]), config(), decode, broken, clock=lambda: now[0])
+    supervisor = Supervisor(FakeBackend([room]), config(), decode, broken, clock=lambda: now[0], liveness=FakeLiveness())
     await supervisor.reconcile_once()
     await settle()
     await supervisor.reconcile_once()          # finished task cleared; but it must wait before retrying
@@ -134,7 +141,7 @@ async def test_a_failing_stream_is_retried_later_not_straight_away():
 
 async def test_the_backend_being_away_doesnt_stop_anything():
     backend = FakeBackend([live()])
-    supervisor = Supervisor(backend, config(), decode, frames_of(then_wait=True))
+    supervisor = Supervisor(backend, config(), decode, frames_of(then_wait=True), liveness=FakeLiveness())
     await supervisor.reconcile_once()
     backend.fail = True
 
@@ -158,7 +165,7 @@ async def test_when_decoding_is_slow_only_the_newest_frame_waits():
         return []
 
     frames = [bytes([i]) * (WIDTH * HEIGHT) for i in range(5)]
-    supervisor = Supervisor(backend, config(), slow_decode, frames_of(*frames, then_wait=True))
+    supervisor = Supervisor(backend, config(), slow_decode, frames_of(*frames, then_wait=True), liveness=FakeLiveness())
     await supervisor.reconcile_once()
     await settle()
     release.set()

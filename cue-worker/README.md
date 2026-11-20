@@ -17,9 +17,10 @@ the room a Give card, and (for verified churches) opens Payaza's checkout inside
 - **Shards:** `WORKER_SHARD=1/3` makes this worker take one third of the rooms (by session id), so more workers
   simply means more capacity, with no room watched twice.
 
-**Watches today:** live streams (`LIVESTREAM`, e.g. `.m3u8`). **Next:** pre-recorded video files (`URL`, following
-the room's play/pause/seek), then YouTube/Vimeo rooms through a screen share in the room's call (a hidden, view-only
-viewer). YouTube is never downloaded.
+**Watches today:** live streams. A room's direct link (`.m3u8`) is checked first: a live HLS playlist has no
+`#EXT-X-ENDLIST` line (the backend can't tell from the link; the stream can). **Next:** recordings and `.mp4` files
+(following the room's play/pause/seek), then YouTube/Vimeo rooms through a screen share in the room's call (a hidden,
+view-only viewer). YouTube is never downloaded. `/health` lists rooms skipped and why.
 
 ## Run it on your laptop (against staging)
 

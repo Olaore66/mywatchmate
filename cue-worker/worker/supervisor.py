@@ -17,15 +17,16 @@ from dataclasses import dataclass, field
 from .api import BackendApi, LiveSession
 from .config import Config
 from .dedupe import Dedupe
+from .liveness import Liveness
 
 log = logging.getLogger(__name__)
 
 FrameSource = Callable[[str, int, int, float], AsyncIterator[bytes]]
 Decode = Callable[[bytes], Awaitable[list[str]]]
 
-# Sources we can read today. URL (pre-recorded files) needs the room's play/pause/seek; YouTube and Vimeo need the
-# screen-share route. Both come in later steps.
-WATCHABLE = {"LIVESTREAM"}
+# Direct links (URL) are watched when they turn out to be live streams. Pre-recorded files need the room's
+# play/pause/seek, and YouTube and Vimeo need the screen-share route; both come in later steps.
+DIRECT = {"URL", "LIVESTREAM"}
 MAX_BACKOFF_SECONDS = 300.0
 HEALTHY_RUN_SECONDS = 60.0
 
@@ -48,8 +49,9 @@ class Stats:
 
 class Supervisor:
     def __init__(self, api: BackendApi, config: Config, decode: Decode, frames: FrameSource,
-                 clock: Callable[[], float] = time.monotonic) -> None:
+                 clock: Callable[[], float] = time.monotonic, liveness: Liveness | None = None) -> None:
         self._api = api
+        self._liveness = liveness or Liveness(clock=clock)
         self._config = config
         self._decode = decode
         self._frames = frames
@@ -95,8 +97,9 @@ class Supervisor:
         for session_id, session in wanted.items():                      # new rooms, up to the cap
             if session_id in self._watchers:
                 continue
-            if session.source not in WATCHABLE or not session.stream_url:
-                skipped[session.source or "NOTHING_PLAYING"] = skipped.get(session.source or "NOTHING_PLAYING", 0) + 1
+            reason = await self._why_not_watchable(session)
+            if reason is not None:
+                skipped[reason] = skipped.get(reason, 0) + 1
                 continue
             if len(self._watchers) >= self._config.max_rooms:
                 log.warning("at the cap of %d rooms; add a shard", self._config.max_rooms)
@@ -106,6 +109,16 @@ class Supervisor:
             self._watchers[session_id] = asyncio.create_task(self._watch(session), name=f"watch-{session_id}")
         self.stats.rooms = len(self._watchers)
         self.stats.skipped_sources = skipped
+
+    async def _why_not_watchable(self, session: LiveSession) -> str | None:
+        """None when we can watch it; otherwise a short reason (shown on /health)."""
+        if session.source is None:
+            return "NOTHING_PLAYING"
+        if session.source not in DIRECT or not session.stream_url:
+            return session.source
+        if not await self._liveness.is_live(session.stream_url):
+            return "RECORDING"
+        return None
 
     async def stop_all(self) -> None:
         for task in self._watchers.values():
