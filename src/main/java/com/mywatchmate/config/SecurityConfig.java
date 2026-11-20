@@ -37,7 +37,7 @@ public class SecurityConfig {
 
     private static final String[] PUBLIC_POSTS = {
         "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh",
-        "/api/v1/auth/guest", "/api/v1/auth/guest/refresh",
+        "/api/v1/auth/guest", "/api/v1/auth/guest/refresh", "/api/v1/auth/google",
         "/api/v1/auth/password/forgot", "/api/v1/auth/password/reset", "/api/v1/auth/email/verify"
     };
 
@@ -70,7 +70,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/invites/*/join").hasRole("USER")
                 .requestMatchers("/api/v1/spaces").hasRole("USER")
                 .requestMatchers("/api/v1/spaces/*/reminders").hasRole("USER")
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/upgrade").hasRole("GUEST")
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/upgrade", "/api/v1/auth/upgrade/google").hasRole("GUEST")
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout", "/api/v1/auth/email/resend").hasRole("USER")
                 .requestMatchers("/api/v1/me/**", "/api/v1/me").hasRole("USER")
                 // Staff screens: signed-in users here; the staff role itself is checked in the database on every call

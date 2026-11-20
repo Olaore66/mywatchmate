@@ -99,6 +99,12 @@ Forgotten password: `POST /auth/password/forgot` emails a one-time link to `<FRO
 then `POST /auth/password/reset`. Sign-up and guest upgrade email a link to `<FRONTEND_URL>/verify-email?token=…`,
 then `POST /auth/email/verify` (`emailVerified` is on `/me`; unconfirmed accounts still work).
 
+Sign in with Google: the app sends the ID token from Google's button to `POST /auth/google` (same response as
+`/auth/login`; signs up too), or `POST /auth/upgrade/google` for a guest. Accounts are matched by Google's account id,
+then linked by verified email. Linking to an account whose email was never verified removes its password and signs it
+out everywhere. Setting: `GOOGLE_CLIENT_IDS` (our OAuth client ids, comma-separated; empty turns it off with 503
+`GOOGLE_SIGN_IN_DISABLED`).
+
 Re-using an old refresh token signs that login out everywhere (`REFRESH_TOKEN_REUSED`) — it means
 the token was probably copied. A guest becomes a user with `POST /auth/upgrade` (guest token),
 keeping their history. WebSocket clients send `Authorization: Bearer <accessToken>` on the STOMP CONNECT frame.

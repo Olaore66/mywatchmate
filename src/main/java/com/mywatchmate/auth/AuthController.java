@@ -1,6 +1,7 @@
 package com.mywatchmate.auth;
 
 import com.mywatchmate.abuse.LoginAttempts;
+import com.mywatchmate.auth.dto.GoogleSignInRequest;
 import com.mywatchmate.auth.dto.GuestJoinRequest;
 import com.mywatchmate.auth.dto.GuestRefreshRequest;
 import com.mywatchmate.auth.dto.GuestTokenResponse;
@@ -47,6 +48,7 @@ public class AuthController {
 
     private final AuthService auth;
     private final LoginAttempts attempts;
+    private final GoogleSignInService google;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -87,6 +89,48 @@ public class AuthController {
             }
             throw e;
         }
+    }
+
+    @PostMapping("/google")
+    @Operation(summary = "Sign in (or sign up) with Google", description = """
+        Send the `credential` from Google's sign-in button as `idToken`. Signs in the account this Google account
+        belongs to; or, if its email already has an account, links Google to it; or creates a new account (no password:
+        they can add one with "forgot password"). Same response as `/auth/login`. Google has verified the email, so
+        `emailVerified` is true. When Google links to an account whose email was never verified, that account's
+        password is removed and its other devices are signed out: nobody had proved they own that email.""")
+    @ApiResponse(responseCode = "200", description = "Signed in; tokens returned")
+    @ApiResponse(responseCode = "400", description = "VALIDATION_FAILED or INVALID_TIMEZONE",
+        content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "401", description = "INVALID_GOOGLE_TOKEN (forged, expired, or made for another app) "
+        + "or GOOGLE_EMAIL_NOT_VERIFIED",
+        content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "409", description = "GOOGLE_ACCOUNT_MISMATCH (this email's account uses another Google "
+        + "account) or SIGN_IN_IN_PROGRESS (tapped twice; try again)",
+        content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "503", description = "GOOGLE_SIGN_IN_DISABLED: hide the Google button",
+        content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    public TokenResponse google(@Valid @RequestBody GoogleSignInRequest request,
+                                @Parameter(hidden = true) @RequestHeader(value = HttpHeaders.USER_AGENT, required = false) String userAgent) {
+        return google.signIn(request.idToken(), request.timezone(), userAgent);
+    }
+
+    @PostMapping("/upgrade/google")
+    @SecurityRequirement(name = OpenApiConfig.BEARER)
+    @Operation(summary = "Guest: create my account with Google", description = """
+        Like `/auth/upgrade`, with Google instead of a password: the guest's place in the room (chat, attendance)
+        moves to the new account. Call with the guest's access token.""")
+    @ApiResponse(responseCode = "200", description = "Account created; tokens returned (the guest token stops working)")
+    @ApiResponse(responseCode = "401", description = "INVALID_GOOGLE_TOKEN, GOOGLE_EMAIL_NOT_VERIFIED or GUEST_NOT_FOUND",
+        content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "409", description = "EMAIL_TAKEN (they already have an account: sign in with Google "
+        + "and rejoin with the link) or ALREADY_UPGRADED",
+        content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "503", description = "GOOGLE_SIGN_IN_DISABLED",
+        content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    public TokenResponse upgradeWithGoogle(@Parameter(hidden = true) @AuthenticationPrincipal AuthPrincipal principal,
+                                           @Valid @RequestBody GoogleSignInRequest request,
+                                           @Parameter(hidden = true) @RequestHeader(value = HttpHeaders.USER_AGENT, required = false) String userAgent) {
+        return google.upgradeGuest(principal, request.idToken(), request.timezone(), userAgent);
     }
 
     @PostMapping("/refresh")
