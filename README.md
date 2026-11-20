@@ -208,5 +208,6 @@ Permissions are in the **Spaces** section of Swagger; live events are in
 
 ## Not built yet
 
+(The AI cue worker, Phase 8, is built: see [cue-worker/README.md](cue-worker/README.md).)
+
 - Push notifications (device tokens are already collected; sending needs Firebase/APNs credentials)
-- AI cue worker (Phase 8: spots giving QR codes in the stream and calls `POST /internal/cues`)
