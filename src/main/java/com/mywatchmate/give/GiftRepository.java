@@ -33,11 +33,30 @@ public interface GiftRepository extends JpaRepository<Gift, UUID> {
         """)
     List<Gift> findInSpace(UUID spaceId, Instant from, Instant to);
 
+    /** In-room payments Payaza hasn't confirmed yet, opened after the cutoff, oldest first. */
+    @Query("""
+        select g from Gift g join fetch g.session s join fetch s.space join fetch g.participant p left join fetch p.user
+        where g.status = com.mywatchmate.give.Gift.Status.OPENED and g.checkoutReference is not null
+          and g.openedAt >= :since
+        order by g.openedAt
+        """)
+    List<Gift> findCheckoutsAwaitingPayaza(Instant since, org.springframework.data.domain.Limit limit);
+
+    /** In-room payments Payaza never settled within the checking window: we'll never know. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+        update Gift g set g.status = com.mywatchmate.give.Gift.Status.UNKNOWN
+        where g.status = com.mywatchmate.give.Gift.Status.OPENED and g.checkoutReference is not null
+          and g.openedAt < :before
+        """)
+    int expireCheckoutsOpenedBefore(Instant before);
+
     /** Opened long enough ago with no result: we'll never know. Loaded gifts are refreshed afterwards. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
         update Gift g set g.status = com.mywatchmate.give.Gift.Status.UNKNOWN
         where g.status = com.mywatchmate.give.Gift.Status.OPENED and g.openedAt < :before
+          and g.checkoutReference is null
         """)
     int expireOpenedBefore(Instant before);
 }

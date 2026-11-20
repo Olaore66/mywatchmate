@@ -48,7 +48,7 @@ class ModerationServiceTest {
 
     private static final Instant NOW = MONDAY_MIDNIGHT;
     private static final AuthPrincipal RITA = AuthPrincipal.user(UUID.randomUUID());
-    private static final String URL = "https://pay.payaza.africa/give/stmarks";
+    private static final String URL = "https://business.payaza.africa/pay/stmarks";
 
     @Mock StaffAccess staff;
     @Mock PaymentLinkRepository links;
@@ -56,7 +56,7 @@ class ModerationServiceTest {
     @Mock LinkEvidence evidence;
     @Mock GiveService give;
 
-    private final GiveProperties props = new GiveProperties(List.of("payaza.africa"), Duration.ofMinutes(10),
+    private final GiveProperties props = new GiveProperties(List.of("https://business.payaza.africa/pay/"), Duration.ofMinutes(10),
         Duration.ofMinutes(5), 3, Duration.ofHours(1), "secret");
     private ModerationService service;
     private User rita;
@@ -76,7 +76,7 @@ class ModerationServiceTest {
     }
 
     private static PaymentLink link(Status status, int reports, Instant changedAt) {
-        PaymentLink link = new PaymentLink("https://pay.payaza.africa/give/" + UUID.randomUUID(), PaymentLink.Provider.PAYAZA);
+        PaymentLink link = new PaymentLink("https://business.payaza.africa/pay/" + UUID.randomUUID(), PaymentLink.Provider.PAYAZA);
         ReflectionTestUtils.setField(link, "id", UUID.randomUUID());
         link.changeStatus(status, "Reported by viewers; under review", changedAt);
         link.setReportCount(reports);

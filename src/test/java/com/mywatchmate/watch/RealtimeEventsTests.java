@@ -390,7 +390,7 @@ class RealtimeEventsTests {
             collectInto(bisiHears, "GIVE_PROMPT", "GIVE_PROMPT_CLOSED", "GIFT_MADE"));
         Thread.sleep(300);
 
-        String link = "https://pay.payaza.africa/give/ws-" + UUID.randomUUID();
+        String link = "https://business.payaza.africa/pay/ws-" + UUID.randomUUID();
         String promptId = post("/api/v1/spaces/" + spaceId + "/give/prompts", ada, "{\"url\":\"" + link + "\"}").read("$.id");
         DocumentContext prompt = JsonPath.parse(next(bisiHears));
         assertThat(prompt.read("$.type", String.class)).isEqualTo("GIVE_PROMPT");

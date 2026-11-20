@@ -56,7 +56,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class GiveServiceTest {
 
     private static final Instant NOW = MONDAY_MIDNIGHT;
-    private static final String LINK = "https://pay.payaza.africa/give/stmarks";
+    private static final String LINK = "https://business.payaza.africa/pay/stmarks";
 
     @Mock PaymentLinkRepository links;
     @Mock CueDetectionRepository detections;
@@ -65,8 +65,10 @@ class GiveServiceTest {
     @Mock SpaceAccess access;
     @Mock SpaceEvents events;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock PayazaAccountRepository accounts;
+    @Mock VerifiedChurches churches;
 
-    private final GiveProperties props = new GiveProperties(List.of("payaza.africa"), Duration.ofMinutes(10),
+    private final GiveProperties props = new GiveProperties(List.of("https://business.payaza.africa/pay/"), Duration.ofMinutes(10),
         Duration.ofMinutes(5), 3, Duration.ofHours(1), "secret");
     private GiveService service;
     private Space space;
@@ -79,7 +81,7 @@ class GiveServiceTest {
     @BeforeEach
     void setUp() {
         service = new GiveService(new PaymentLinkRecognizer(props), links, detections, roomBlocks, sessions, access,
-            events, props, clockAt(NOW), eventPublisher);
+            events, props, clockAt(NOW), eventPublisher, new CheckoutResolver(accounts, churches));
         space = space(user("Ada"));
         ada = member(space, space.getOwner(), Participant.Role.OWNER);
         tunde = member(space, user("Tunde"), Participant.Role.MEMBER);
@@ -138,14 +140,14 @@ class GiveServiceTest {
 
         @Test
         void aLinkSeenForTheFirstTimeIsRemembered() {
-            when(links.findByNormalizedUrl("https://pay.payaza.africa/give/new")).thenReturn(Optional.empty());
+            when(links.findByNormalizedUrl("https://business.payaza.africa/pay/new")).thenReturn(Optional.empty());
             when(links.saveAndFlush(any(PaymentLink.class))).thenAnswer(i -> withId(i.getArgument(0)));
 
-            service.showByHost(principalOf(ada), space.getId(), "https://pay.payaza.africa/give/new");
+            service.showByHost(principalOf(ada), space.getId(), "https://business.payaza.africa/pay/new");
 
             ArgumentCaptor<PaymentLink> saved = ArgumentCaptor.forClass(PaymentLink.class);
             verify(links).saveAndFlush(saved.capture());
-            assertThat(saved.getValue().getNormalizedUrl()).isEqualTo("https://pay.payaza.africa/give/new");
+            assertThat(saved.getValue().getNormalizedUrl()).isEqualTo("https://business.payaza.africa/pay/new");
             assertThat(saved.getValue().getFirstSeenAt()).isEqualTo(NOW);
         }
 

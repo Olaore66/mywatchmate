@@ -80,6 +80,25 @@ public class Gift {
     // When the viewer's app reported the result
     private Instant reportedAt;
 
+    // Paid in the room through Payaza's checkout: our reference for it, and the key and mode it used
+    @Column(length = 64, updatable = false)
+    private String checkoutReference;
+
+    @Column(length = 200, updatable = false)
+    private String checkoutPublicKey;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 8, updatable = false)
+    private PayazaAccount.Mode checkoutMode;
+
+    // The verified church it went to (null: a room's own registration, or a new-tab gift)
+    @Column(name = "church_id", updatable = false)
+    private UUID churchId;
+
+    // Payaza confirmed the result (in-room checkout); false: as the giver's app reported it
+    @Column(nullable = false)
+    private boolean verified;
+
     public Gift(CueDetection detection, WatchSession session, Participant participant,
                 PaymentLink paymentLink, boolean anonymous) {
         this.detection = detection;
@@ -87,6 +106,29 @@ public class Gift {
         this.participant = participant;
         this.paymentLink = paymentLink;
         this.anonymous = anonymous;
+    }
+
+    /** Paid through Payaza's checkout in the room, so Payaza can confirm it. */
+    public boolean isInRoomCheckout() {
+        return checkoutReference != null;
+    }
+
+    /** Opened as an in-room checkout into this account. */
+    public void useCheckout(String reference, CheckoutAccount account) {
+        this.checkoutReference = reference;
+        this.checkoutPublicKey = account.publicKey();
+        this.checkoutMode = account.mode();
+        this.churchId = account.churchId();
+    }
+
+    public void useCheckout(String reference, PayazaAccount room) {
+        useCheckout(reference, CheckoutAccount.of(room));
+    }
+
+    /** What Payaza says happened: the truth, whatever the app reported. */
+    public void confirm(Status result, Long amountMinor, String currency, String payazaReference, Instant now) {
+        report(result, amountMinor, currency, payazaReference, now);
+        this.verified = true;
     }
 
     /** A result can be reported once; a late one is still accepted after the gift went UNKNOWN. */

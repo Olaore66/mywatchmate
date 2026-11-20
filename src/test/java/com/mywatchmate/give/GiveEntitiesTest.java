@@ -17,7 +17,7 @@ class GiveEntitiesTest {
 
     private final Space space = space(user("Ada"));
     private final WatchSession live = session(space, MONDAY_MIDNIGHT);
-    private final PaymentLink link = new PaymentLink("https://pay.payaza.africa/give/x", PaymentLink.Provider.PAYAZA);
+    private final PaymentLink link = new PaymentLink("https://business.payaza.africa/pay/x", PaymentLink.Provider.PAYAZA);
 
     private static Instant at(long seconds) {
         return MONDAY_MIDNIGHT.plusSeconds(seconds);

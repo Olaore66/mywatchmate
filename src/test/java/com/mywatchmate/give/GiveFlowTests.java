@@ -38,7 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class GiveFlowTests {
 
-    private static final String LINK = "https://pay.payaza.africa/give/stmarks-" + UUID.randomUUID();
+    private static final String LINK = "https://business.payaza.africa/pay/stmarks-" + UUID.randomUUID();
 
     @Autowired MockMvc mvc;
     @Autowired GiftExpiryJob expiry;
@@ -155,7 +155,7 @@ class GiveFlowTests {
 
     @Test
     void threeScamReportsBlockALinkEverywhere() throws Exception {
-        String scam = "https://pay.payaza.africa/give/scam-" + UUID.randomUUID();
+        String scam = "https://business.payaza.africa/pay/scam-" + UUID.randomUUID();
         String ada = register("Ada");
         String spaceId = createRoom(ada);
         String invite = inviteOf(ada, spaceId);

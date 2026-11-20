@@ -101,10 +101,16 @@ mywatchmate:
     api-secret: ${LIVEKIT_API_SECRET:}
     # A join token can be used to connect for this long (the call itself can last as long as needed)
     token-ttl: 10m
+  payaza:
+    # Payaza's API, for confirming in-room payments (one address for test and live; the key and mode choose)
+    api-base: ${PAYAZA_API_BASE:https://api.payaza.africa/live}
+    timeout: 5s
+    # Keep asking Payaza about an unfinished in-room payment for this long, then it's UNKNOWN
+    verify-for: 2h
   give:
-    # Where Payaza payment links live (a link must be on one of these, or a subdomain).
-    # ASSUMPTION until Payaza confirms their link format; it's settings, not code.
-    payaza-hosts: ${PAYAZA_HOSTS:payaza.africa}
+    # The shapes a Payaza payment link comes in: this address followed by one slug, nothing else
+    # (https://docs.payaza.africa/guides/payment-links). Comma-separated if Payaza adds more.
+    payaza-links: ${PAYAZA_LINKS:https://business.payaza.africa/pay/}
     # The AI seeing the same link again within this, in the same session, doesn't re-prompt
     reprompt-window: 10m
     # A Give prompt stays up this long unless a host closes it

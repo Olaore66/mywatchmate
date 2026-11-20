@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,14 +15,33 @@ import org.springframework.stereotype.Component;
  * a wrong "yes" puts a scammer's link in front of a whole congregation.
  */
 @Component
-@RequiredArgsConstructor
 public class PaymentLinkRecognizer {
 
     static final int MAX_LENGTH = 2048;
     private static final Set<String> TRACKING_PARAMS = Set.of("fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "ref", "si");
     private static final Pattern IPV4 = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}$");
+    // A payment link's own name: one path segment, plain characters only
+    private static final Pattern SLUG = Pattern.compile("^[A-Za-z0-9._~-]{1,200}$");
 
-    private final GiveProperties props;
+    /** "https://business.payaza.africa/pay/" as host + path. */
+    private record Shape(String host, String pathPrefix) {
+    }
+
+    private final List<Shape> shapes;
+
+    public PaymentLinkRecognizer(GiveProperties props) {
+        this.shapes = props.payazaLinks().stream()
+            .map(String::strip)
+            .filter(link -> !link.isEmpty())
+            .map(PaymentLinkRecognizer::shapeOf)
+            .toList();
+    }
+
+    private static Shape shapeOf(String link) {
+        URI uri = URI.create(link);
+        String path = uri.getRawPath() == null ? "/" : uri.getRawPath();
+        return new Shape(uri.getHost().toLowerCase(Locale.ROOT), path.endsWith("/") ? path : path + "/");
+    }
 
     /** @param reason why it isn't acceptable (null when it is) */
     public record Result(String normalizedUrl, PaymentLink.Provider provider, String reason) {
@@ -73,28 +91,26 @@ public class PaymentLinkRecognizer {
         if (uri.getPort() != -1 && uri.getPort() != 443) {
             return Result.rejected("BAD_PORT");
         }
-        if (!isPayazaHost(host)) {
+        String finalHost = host;
+        List<Shape> onThisHost = shapes.stream().filter(shape -> shape.host().equals(finalHost)).toList();
+        if (onThisHost.isEmpty()) {
             return Result.rejected("NOT_PAYAZA");
         }
         String path = uri.getRawPath() == null ? "" : uri.getRawPath();
         while (path.endsWith("/")) {
             path = path.substring(0, path.length() - 1);
         }
-        if (path.isEmpty()) {
+        String linkPath = path;
+        if (onThisHost.stream().noneMatch(shape -> isLinkShape(shape, linkPath))) {
             return Result.rejected("NOT_A_PAYMENT_LINK");
         }
         String query = cleanQuery(uri.getRawQuery());
         return Result.accepted("https://" + host + path + (query.isEmpty() ? "" : "?" + query));
     }
 
-    private boolean isPayazaHost(String host) {
-        for (String allowed : props.payazaHosts()) {
-            String domain = allowed.toLowerCase(Locale.ROOT).strip();
-            if (host.equals(domain) || host.endsWith("." + domain)) {
-                return true;
-            }
-        }
-        return false;
+    /** The path is the shape's prefix followed by exactly one slug. */
+    private static boolean isLinkShape(Shape shape, String path) {
+        return path.startsWith(shape.pathPrefix()) && SLUG.matcher(path.substring(shape.pathPrefix().length())).matches();
     }
 
     /** Keeps the link's own parameters (it may need them), drops tracking ones. */

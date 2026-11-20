@@ -32,7 +32,7 @@ class ModerationEntitiesTest {
     @Test
     void aReviewKeepsTheReviewersNameEvenIfTheyRenameLater() {
         User rita = user("Rita");
-        PaymentLink link = new PaymentLink("https://pay.payaza.africa/give/x", PaymentLink.Provider.PAYAZA);
+        PaymentLink link = new PaymentLink("https://business.payaza.africa/pay/x", PaymentLink.Provider.PAYAZA);
 
         LinkReview review = new LinkReview(link, rita, Decision.CONFIRM_SCAM, Status.HELD, Status.BLOCKED,
             "Wrong account", 3, MONDAY_MIDNIGHT);
@@ -50,7 +50,7 @@ class ModerationEntitiesTest {
 
     @Test
     void aSummaryShowsTheLinkAndItsOpenReports() {
-        PaymentLink link = new PaymentLink("https://pay.payaza.africa/give/x", PaymentLink.Provider.PAYAZA);
+        PaymentLink link = new PaymentLink("https://business.payaza.africa/pay/x", PaymentLink.Provider.PAYAZA);
         ReflectionTestUtils.setField(link, "id", UUID.randomUUID());
         link.setMerchantName("St Mark's");
         link.setReportCount(3);
@@ -59,7 +59,7 @@ class ModerationEntitiesTest {
         LinkSummary summary = LinkSummary.from(link);
 
         assertThat(summary.id()).isEqualTo(link.getId());
-        assertThat(summary.url()).isEqualTo("https://pay.payaza.africa/give/x");
+        assertThat(summary.url()).isEqualTo("https://business.payaza.africa/pay/x");
         assertThat(summary.merchantName()).isEqualTo("St Mark's");
         assertThat(summary.status()).isEqualTo(Status.HELD);
         assertThat(summary.openReports()).isEqualTo(3);

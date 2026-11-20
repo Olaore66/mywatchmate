@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record ShowPromptRequest(
-    @Schema(description = "A Payaza payment link (e.g. the church's giving link)", example = "https://pay.payaza.africa/give/stmarks")
+    @Schema(description = "A Payaza payment link (e.g. the church's giving link)", example = "https://business.payaza.africa/pay/stmarks")
     @NotBlank @Size(max = 2048) String url
 ) {
 }

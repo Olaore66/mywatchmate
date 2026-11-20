@@ -9,8 +9,11 @@ public final class Notices {
     }
 
     public static String paying(PaymentLink link) {
-        String who = link.getMerchantName() == null || link.getMerchantName().isBlank()
-            ? "the link's owner" : link.getMerchantName();
+        return paying(link.getMerchantName());
+    }
+
+    public static String paying(String merchantName) {
+        String who = merchantName == null || merchantName.isBlank() ? "the link's owner" : merchantName;
         return "You're paying " + who + " through Payaza. MyWatchMate never holds your money.";
     }
 }

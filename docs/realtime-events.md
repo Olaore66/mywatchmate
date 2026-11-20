@@ -166,7 +166,7 @@ with `deleted: true` and `body: null`.
 
 **Prompt** (same as `PromptResponse` in Swagger)
 ```json
-{ "id": "8f9a…", "sessionId": "9e8d…", "url": "https://pay.payaza.africa/give/stmarks", "provider": "PAYAZA",
+{ "id": "8f9a…", "sessionId": "9e8d…", "url": "https://business.payaza.africa/pay/stmarks", "provider": "PAYAZA",
   "merchantName": null, "source": "HOST", "shownAt": "2026-11-02T05:40:00Z", "expiresAt": "2026-11-02T05:45:00Z",
   "notice": "You're paying the link's owner through Payaza. MyWatchMate never holds your money." }
 ```
@@ -206,21 +206,56 @@ from its call at once.
 
 During a live session a **Give card** can appear (`GIVE_PROMPT`). Someone opening the room late gets it from
 `GET /spaces/{id}/give/prompts/current` (204 when nothing is up). Show it until `expiresAt` or
-`GIVE_PROMPT_CLOSED`, always with its `notice`.
+`GIVE_PROMPT_CLOSED`, always with its `notice`. `inRoomCheckout: true` means the giver will pay inside the room.
+When `verifiedChurch` is set, show a **"✓ Verified: {verifiedChurch}"** badge: MyWatchMate checked that church.
 
 1. Tap **Give** → `POST /spaces/{id}/give/prompts/{promptId}/open` with `{ "anonymous": true|false }`.
-2. Open the returned `checkoutUrl` **without leaving the room**:
-   - **Mobile:** an in-app browser over the video (iOS `SFSafariViewController`, Android Custom Tabs),
-     so the stream keeps playing underneath.
-   - **Web:** a popup window (`window.open`, sized like a checkout); keep the player running.
-3. When the checkout closes (or Payaza's page says paid/failed), report it **once**:
-   `POST /gifts/{giftId}/result` with `{ "status": "COMPLETED" | "FAILED" | "CANCELLED", "amountMinor", "currency",
-   "providerTxnRef" }` (amount in kobo/cents, e.g. 500000 = NGN 5,000). If you can't tell, don't report: after
-   an hour it becomes UNKNOWN.
+2. **If the response has `checkout`** (a verified church's link, in any room; or a link this room registered as its
+   own): open Payaza's checkout
+   popup in the room, so the giver never leaves. Load `https://checkout-v2.payaza.africa/js/v1/bundle.js` once, ask
+   for the amount (and phone number, plus anything not prefilled), then:
+
+   ```js
+   const c = checkout;                       // from the open response
+   const popup = PayazaCheckout.setup({
+     merchant_key: c.merchantKey,
+     connection_mode: c.connectionMode,     // "Test" or "Live"
+     transaction_reference: c.transactionReference,   // exactly this: it's how we confirm the payment
+     currency_code: c.currencyCode,
+     checkout_amount: amount,               // what the giver typed, in naira (not kobo)
+     email_address: c.email ?? typed.email,
+     first_name: c.firstName ?? typed.firstName,
+     last_name: c.lastName ?? typed.lastName,
+     phone_number: typed.phone,             // international format, e.g. +2348012345678
+   });
+   popup.setCallback((r) => report(r.type === "success" ? "COMPLETED" : "FAILED"));
+   popup.setOnClose(() => report("CANCELLED"));
+   popup.showPopup();
+   ```
+
+   `report(status)` sends `POST /gifts/{giftId}/result` with `{ "status": status }` once. **We confirm the result
+   with Payaza ourselves**, so the amount and status in the response are Payaza's, not the app's. If Payaza hasn't
+   finished yet the gift stays `OPENED`; we keep checking every minute for two hours, then it's `UNKNOWN`.
+3. **Otherwise** open `checkoutUrl` in a new tab or in-app browser (Payaza's link page can't be shown inside another
+   site), and report what the giver says happened, once: `POST /gifts/{giftId}/result` with
+   `{ "status": "COMPLETED" | "FAILED" | "CANCELLED", "amountMinor", "currency", "providerTxnRef" }` (amount in
+   kobo/cents). These results are **self-reported** (`selfReported: true`): Payaza confirms them to the link's owner,
+   not to us. If you can't tell, don't report: after an hour it becomes UNKNOWN.
 4. The room gets `GIFT_MADE`: show a gentle "Bisi gave 🙏" (or "Someone gave 🙏"). There's never an amount.
 
-Results are **self-reported**: Payaza confirms payments to the link's owner, not to MyWatchMate. Offer a
-"Report this link" option on the card (`POST …/prompts/{promptId}/report`); three reports block a link everywhere.
+**Verified churches (the usual way):** a church applies once with `POST /churches/applications` (its Payaza
+**public** key and its payment links); MyWatchMate staff verify it's really that church; from then on its links are
+paid inside **any** room, with the badge. Viewers and room creators never give us anything. The church follows its
+application with `GET /me/church-applications`, and asks for a new key or links with
+`POST /churches/{id}/change-requests` (used only once staff approve it).
+
+**A room's own registration (owner and admins):** `PUT /spaces/{id}/give/payaza-account` with the church's Payaza
+**public** key (Payaza dashboard → Settings → Developers; never the secret key), `mode` (`TEST` to try it, `LIVE`
+for real money), the name givers see, and the church's own payment links. Only those links, and only in this room,
+open in the room; anything else still opens in a new tab.
+
+Offer a "Report this link" option on the card (`POST …/prompts/{promptId}/report`); three reports hold a link
+everywhere until staff review it.
 
 ## Chat
 

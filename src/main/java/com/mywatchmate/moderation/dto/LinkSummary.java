@@ -8,7 +8,7 @@ import java.util.UUID;
 @Schema(description = "A payment link in the review queue (or the blocked list)")
 public record LinkSummary(
     UUID id,
-    @Schema(example = "https://pay.payaza.africa/give/stmarks") String url,
+    @Schema(example = "https://business.payaza.africa/pay/stmarks") String url,
     PaymentLink.Provider provider,
     @Schema(nullable = true) String merchantName,
     @Schema(description = "HELD: waiting for review (not shown meanwhile). BLOCKED: confirmed scam. ALLOWED: fine")

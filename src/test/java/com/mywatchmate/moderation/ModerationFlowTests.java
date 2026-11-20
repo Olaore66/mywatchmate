@@ -62,7 +62,7 @@ class ModerationFlowTests {
 
     @Test
     void aReportedLinkIsHeldUntilAReviewerClearsOrConfirmsIt() throws Exception {
-        String link = "https://pay.payaza.africa/give/review-" + UUID.randomUUID();
+        String link = "https://business.payaza.africa/pay/review-" + UUID.randomUUID();
         String rita = staff("Rita", "ADMIN");
         String ada = register("Ada");
         String spaceId = createRoom(ada);
@@ -155,7 +155,7 @@ class ModerationFlowTests {
 
     @Test
     void staffCanBlockALinkBeforeAnyoneReportsIt() throws Exception {
-        String link = "https://pay.payaza.africa/give/fake-" + UUID.randomUUID();
+        String link = "https://business.payaza.africa/pay/fake-" + UUID.randomUUID();
         String max = staff("Max", "MODERATOR");
 
         String body = "{\"url\":\"%s?utm_source=wa\",\"note\":\"Impersonating St Mark's\"}".formatted(link);

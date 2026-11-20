@@ -40,7 +40,7 @@ class LinkEvidenceTests {
     @Test
     void reportsRoomsAndGiftsAreGatheredWithoutNamingReporters() throws Exception {
         when(metadata.fetch(any(ResolvedLink.class))).thenReturn(new VideoMetadata("Sunday Service", null, null));
-        String link = "https://pay.payaza.africa/give/evidence-" + UUID.randomUUID();
+        String link = "https://business.payaza.africa/pay/evidence-" + UUID.randomUUID();
         String ada = register("Ada");
         String first = createRoom(ada, "Morning Service");
         String second = createRoom(ada, "Evening Service");
@@ -98,7 +98,7 @@ class LinkEvidenceTests {
     @Test
     void aLinkWithNothingAgainstItHasEmptyEvidence() {
         UUID linkId = jdbc.sql("INSERT INTO payment_links (normalized_url, provider) VALUES (:url, 'PAYAZA') RETURNING id")
-            .param("url", "https://pay.payaza.africa/give/quiet-" + UUID.randomUUID()).query(UUID.class).single();
+            .param("url", "https://business.payaza.africa/pay/quiet-" + UUID.randomUUID()).query(UUID.class).single();
 
         assertThat(evidence.reports(linkId)).isEmpty();
         assertThat(evidence.rooms(linkId)).isEmpty();

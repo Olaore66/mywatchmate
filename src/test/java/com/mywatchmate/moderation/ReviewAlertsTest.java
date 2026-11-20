@@ -39,7 +39,7 @@ class ReviewAlertsTest {
 
     @Test
     void everyMemberOfStaffIsEmailedALinkToTheReviewScreen() {
-        PaymentLink link = new PaymentLink("https://pay.payaza.africa/give/x?a=1&b=<2>", PaymentLink.Provider.PAYAZA);
+        PaymentLink link = new PaymentLink("https://business.payaza.africa/pay/x?a=1&b=<2>", PaymentLink.Provider.PAYAZA);
         ReflectionTestUtils.setField(link, "id", UUID.randomUUID());
         link.setReportCount(3);
         when(links.findById(link.getId())).thenReturn(Optional.of(link));

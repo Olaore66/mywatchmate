@@ -75,6 +75,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/me/**", "/api/v1/me").hasRole("USER")
                 // Staff screens: signed-in users here; the staff role itself is checked in the database on every call
                 .requestMatchers("/api/v1/admin/**").hasRole("USER")
+                // Registering a church needs an account
+                .requestMatchers("/api/v1/churches/**").hasRole("USER")
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth -> oauth
                 .bearerTokenResolver(userTokens())

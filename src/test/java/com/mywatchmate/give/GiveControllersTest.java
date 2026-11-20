@@ -44,7 +44,7 @@ class GiveControllersTest {
     private static final UUID SPACE = UUID.randomUUID();
     private static final UUID PROMPT = UUID.randomUUID();
     private static final Instant T0 = Instant.parse("2026-11-02T05:00:00Z");
-    private static final String LINK = "https://pay.payaza.africa/give/stmarks";
+    private static final String LINK = "https://business.payaza.africa/pay/stmarks";
 
     @Autowired MockMvc mvc;
     @MockitoBean GiveService give;
@@ -53,7 +53,7 @@ class GiveControllersTest {
 
     private static PromptResponse prompt() {
         return new PromptResponse(PROMPT, UUID.randomUUID(), LINK, PaymentLink.Provider.PAYAZA, null,
-            CueDetection.Source.HOST, T0, T0.plusSeconds(300), "You're paying …");
+            CueDetection.Source.HOST, T0, T0.plusSeconds(300), "You're paying …", false, null);
     }
 
     @Test
@@ -131,7 +131,7 @@ class GiveControllersTest {
     @Test
     void tappingGiveAnonymouslyOrNot() throws Exception {
         UUID gift = UUID.randomUUID();
-        OpenGiftResponse opened = new OpenGiftResponse(gift, LINK, PaymentLink.Provider.PAYAZA, null, "You're paying …");
+        OpenGiftResponse opened = new OpenGiftResponse(gift, LINK, PaymentLink.Provider.PAYAZA, null, "You're paying …", null, null);
         when(gifts.open(any(), eq(SPACE), eq(PROMPT), any(Boolean.class))).thenReturn(opened);
 
         mvc.perform(post("/api/v1/spaces/" + SPACE + "/give/prompts/" + PROMPT + "/open").with(asUser(USER))
@@ -149,7 +149,7 @@ class GiveControllersTest {
     void reportingTheResult() throws Exception {
         UUID giftId = UUID.randomUUID();
         when(gifts.reportResult(eq(AuthPrincipal.user(USER)), eq(giftId), any())).thenReturn(new GiftResponse(giftId,
-            SPACE, "Room", UUID.randomUUID(), LINK, null, Gift.Status.COMPLETED, 500_000L, "NGN", "PZ-1", false, T0, T0, true));
+            SPACE, "Room", UUID.randomUUID(), LINK, null, Gift.Status.COMPLETED, 500_000L, "NGN", "PZ-1", false, T0, T0, true, false));
 
         mvc.perform(post("/api/v1/gifts/" + giftId + "/result").with(asUser(USER)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"status\":\"COMPLETED\",\"amountMinor\":500000,\"currency\":\"NGN\",\"providerTxnRef\":\"PZ-1\"}"))
@@ -176,7 +176,7 @@ class GiveControllersTest {
     void myGiftsAndTheSummary() throws Exception {
         when(gifts.mine(USER)).thenReturn(List.of());
         when(gifts.summary(AuthPrincipal.user(USER), SPACE, T0, null)).thenReturn(new GiveSummary(T0, T0.plus(Duration.ofDays(1)),
-            2, 5, 3, 1, 1, List.of(new GiveSummary.CurrencyTotal("NGN", 750_000, 3)), true));
+            2, 5, 3, 1, 1, List.of(new GiveSummary.CurrencyTotal("NGN", 750_000, 3)), true, 0));
 
         mvc.perform(get("/api/v1/me/gifts").with(asUser(USER))).andExpect(status().isOk());
         mvc.perform(get("/api/v1/spaces/" + SPACE + "/give/summary").param("from", T0.toString()).with(asUser(USER)))

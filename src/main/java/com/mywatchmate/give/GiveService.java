@@ -47,6 +47,7 @@ public class GiveService {
     private final GiveProperties props;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
+    private final CheckoutResolver checkouts;
 
     /** A host puts up the room's giving link by hand. Problems are errors (nothing is recorded). */
     @Transactional
@@ -111,7 +112,7 @@ public class GiveService {
                 .stream()
                 .filter(d -> d.isShowing(now))
                 .max(Comparator.comparing(CueDetection::getDetectedAt)))
-            .map(PromptResponse::from);
+            .map(prompt -> PromptResponse.from(prompt, checkouts.resolve(spaceId, prompt.getPaymentLink()).orElse(null)));
     }
 
     /** Owner or admins take the card down for everyone. */
@@ -199,7 +200,7 @@ public class GiveService {
         return null;
     }
 
-    static String blockedMessage(String reason) {
+    public static String blockedMessage(String reason) {
         return switch (reason) {
             case "BLOCKED_IN_ROOM" -> "This payment link is blocked in this room.";
             case "UNDER_REVIEW" -> "Viewers reported this payment link, and MyWatchMate is reviewing it.";
@@ -211,6 +212,11 @@ public class GiveService {
         return detections.findInSpace(promptId, spaceId)
             .filter(d -> d.getStatus() == CueDetection.Status.SHOWN)
             .orElseThrow(() -> ApiException.notFound("PROMPT_NOT_FOUND", "That Give prompt isn't in this room."));
+    }
+
+    /** A Payaza payment link we know about (saved if it's new); 422 when it isn't one. */
+    public PaymentLink knownLink(String url) {
+        return linkFor(recognised(url), clock.instant());
     }
 
     private PaymentLinkRecognizer.Result recognised(String url) {
@@ -242,7 +248,9 @@ public class GiveService {
         prompt.setStatus(CueDetection.Status.SHOWN);
         prompt.setDetectedAt(now);
         prompt.setExpiresAt(now.plus(props.promptLifetime()));
-        PromptResponse response = PromptResponse.from(detections.saveAndFlush(prompt));
+        CueDetection saved = detections.saveAndFlush(prompt);
+        PromptResponse response = PromptResponse.from(saved,
+            checkouts.resolve(saved.getSession().getSpace().getId(), link).orElse(null));
         events.publish(prompt.getSession().getSpace().getId(), SpaceEvent.Type.GIVE_PROMPT, response);
         return response;
     }

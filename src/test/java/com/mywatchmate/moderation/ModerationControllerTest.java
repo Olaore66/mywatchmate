@@ -87,12 +87,12 @@ class ModerationControllerTest {
     @Test
     void blockingByUrlNeedsAUrlAndANote() throws Exception {
         mvc.perform(post("/api/v1/admin/links/block").with(asUser(RITA)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"url\":\"https://pay.payaza.africa/give/x\",\"note\":\"Impersonation\"}"))
+                .content("{\"url\":\"https://business.payaza.africa/pay/x\",\"note\":\"Impersonation\"}"))
             .andExpect(status().isOk());
-        verify(moderation).block(AuthPrincipal.user(RITA), "https://pay.payaza.africa/give/x", "Impersonation");
+        verify(moderation).block(AuthPrincipal.user(RITA), "https://business.payaza.africa/pay/x", "Impersonation");
 
         mvc.perform(post("/api/v1/admin/links/block").with(asUser(RITA)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"url\":\"https://pay.payaza.africa/give/x\"}"))
+                .content("{\"url\":\"https://business.payaza.africa/pay/x\"}"))
             .andExpect(status().isBadRequest());
     }
 

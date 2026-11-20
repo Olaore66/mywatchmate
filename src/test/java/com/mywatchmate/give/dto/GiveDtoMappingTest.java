@@ -24,7 +24,7 @@ class GiveDtoMappingTest {
 
     private final Space space = space(user("Ada"));
     private final WatchSession live = session(space, MONDAY_MIDNIGHT);
-    private final PaymentLink link = new PaymentLink("https://pay.payaza.africa/give/stmarks", PaymentLink.Provider.PAYAZA);
+    private final PaymentLink link = new PaymentLink("https://business.payaza.africa/pay/stmarks", PaymentLink.Provider.PAYAZA);
 
     @Test
     void theNoticeNamesWhoIsPaidWhenKnown() {
@@ -50,7 +50,7 @@ class GiveDtoMappingTest {
 
         assertThat(p.id()).isEqualTo(d.getId());
         assertThat(p.sessionId()).isEqualTo(live.getId());
-        assertThat(p.url()).isEqualTo("https://pay.payaza.africa/give/stmarks");
+        assertThat(p.url()).isEqualTo("https://business.payaza.africa/pay/stmarks");
         assertThat(p.provider()).isEqualTo(PaymentLink.Provider.PAYAZA);
         assertThat(p.source()).isEqualTo(CueDetection.Source.AI);
         assertThat(p.shownAt()).isEqualTo(MONDAY_MIDNIGHT);

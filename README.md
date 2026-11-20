@@ -17,6 +17,7 @@ Spring Boot 4.1 · Java 21 · PostgreSQL · Flyway. Concept: [watchwithme-idea-c
 | `connect` | Room chat (kept forever), mutes, typing and reactions; video calls through LiveKit (`connect.call`) | `chat_messages` (monthly partitions) |
 | `give` | Give prompts (host or AI cue) → in-room Payaza checkout, gifts, blocks, scam reports | `payment_links`, `space_blocked_links`, `cue_detections`, `gifts`, `payment_link_reports` |
 | `moderation` | Staff review of reported payment links: queue, evidence, confirm/clear, audit trail | `link_reviews` (+ `users.staff_role`) |
+| `church` | Verified church registry: applications, staff verification, key/link changes, the giving lookup | `churches`, `church_links`, `church_changes`, `church_reviews` |
 | `cluster` | Running one copy of the app or many: live events, presence and rate limits (in memory, or shared through Redis), single-copy job lock | `job_locks` |
 | `config` | Security, JWT, Swagger, WebSocket (STOMP at `/ws`), clock, background jobs switch | |
 | `common` | Error format (problem+json), shared helpers | |
@@ -136,8 +137,15 @@ keeping their history. WebSocket clients send `Authorization: Bearer <accessToke
     `CALL_UPDATED` for who's on. Settings: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (empty: calls off).
     LiveKit's webhook goes to `POST /api/v1/webhooks/livekit` (signature-checked).
 11. Giving: a host puts up the room's Payaza link (`POST /spaces/{id}/give/prompts`) during a live session, or the
-    AI does (Phase 8, via `POST /internal/cues`); viewers open the checkout in-room and report the result.
-    Settings: `PAYAZA_HOSTS` (accepted Payaza link domains), `INTERNAL_CUE_TOKEN` (the AI worker's token;
+    AI does (Phase 8, via `POST /internal/cues`). If the room registered its church's Payaza public key and links
+    (`PUT /spaces/{id}/give/payaza-account`), givers pay inside the room with Payaza's checkout popup and we confirm
+    each payment with Payaza (`GiftVerificationJob` keeps asking for two hours); other links open in a new tab and
+    their results are self-reported. Settings: `PAYAZA_API_BASE`.
+13. Verified churches: a church applies once (`POST /churches/applications`: Payaza public key + payment links); staff
+    verify it (`/admin/churches`: a checklist, a ₦100 test payment with the key, approve/reject/suspend/reinstate,
+    every decision kept for good). A verified church's links are paid inside ANY room with a "✓ Verified" badge, and
+    beat any room's own registration (`give.CheckoutResolver` decides). Key or link changes wait for staff approval.
+    Settings: `PAYAZA_LINKS` (accepted Payaza link shapes; default `https://business.payaza.africa/pay/` + one slug), `INTERNAL_CUE_TOKEN` (the AI worker's token;
     empty turns `/internal` off).
 12. Scam review (staff only): 3 reports from different people **hold** a link (not shown anywhere) and email staff.
     A reviewer (`GET /admin/links`, `GET /admin/links/{id}`) confirms it (`BLOCKED`) or clears it (`ALLOWED`) with
@@ -188,6 +196,7 @@ load balancer that supports WebSockets. No sticky sessions needed. The Redis tes
 | `InviteDispatchJob` | 30 s | Sends queued invitation emails; retries 3 times, then FAILED |
 | `AttendanceJob` | 30 s | Adds watch time for everyone with a live session's room open |
 | `GiftExpiryJob` | 10 min | Gifts opened over an hour ago with no result become UNKNOWN |
+| `GiftVerificationJob` | 1 min | Asks Payaza about in-room payments not yet confirmed (for two hours, then UNKNOWN) |
 | `ChatPartitionJob` | day | Creates next months' chat tables |
 
 Their timers live in `config/ScheduledJobs`; each turn runs on one copy only (`JobLock`, a row in `job_locks`),
@@ -201,4 +210,3 @@ Permissions are in the **Spaces** section of Swagger; live events are in
 
 - Push notifications (device tokens are already collected; sending needs Firebase/APNs credentials)
 - AI cue worker (Phase 8: spots giving QR codes in the stream and calls `POST /internal/cues`)
-- Payaza's exact link domains (placeholder `payaza.africa` in `PAYAZA_HOSTS` until Payaza confirms)

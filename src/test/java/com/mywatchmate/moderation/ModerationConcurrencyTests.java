@@ -56,7 +56,7 @@ class ModerationConcurrencyTests {
         String staffEmail = "staff-" + UUID.randomUUID() + "@example.com";
         register("Rita", staffEmail);
         grant(staffEmail, "MODERATOR");
-        String link = "https://pay.payaza.africa/give/rush-" + UUID.randomUUID();
+        String link = "https://business.payaza.africa/pay/rush-" + UUID.randomUUID();
         String ada = register("Ada", address());
         String spaceId = createRoom(ada);
         String invite = read(mvc.perform(auth(get("/api/v1/spaces/" + spaceId + "/invite"), ada))
@@ -94,7 +94,7 @@ class ModerationConcurrencyTests {
         UUID linkId = jdbc.sql("""
                 INSERT INTO payment_links (normalized_url, provider, status, blocked_reason, report_count)
                 VALUES (:url, 'PAYAZA', 'HELD', 'Reported by viewers; under review', 3) RETURNING id""")
-            .param("url", "https://pay.payaza.africa/give/tug-" + UUID.randomUUID()).query(UUID.class).single();
+            .param("url", "https://business.payaza.africa/pay/tug-" + UUID.randomUUID()).query(UUID.class).single();
 
         List<MockHttpServletResponse> responses = allAtOnce(List.of(
             () -> decide(rita, linkId, "CONFIRM_SCAM"),

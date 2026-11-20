@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.mywatchmate.cluster.JobLock;
 import com.mywatchmate.connect.ChatPartitionJob;
 import com.mywatchmate.give.GiftExpiryJob;
+import com.mywatchmate.give.GiftVerificationJob;
 import com.mywatchmate.invite.InviteDispatchJob;
 import com.mywatchmate.notify.ReminderDispatchJob;
 import com.mywatchmate.sessions.SessionGeneratorJob;
@@ -37,6 +38,7 @@ class ScheduledJobsTest {
     @Mock InviteDispatchJob invites;
     @Mock AttendanceJob attendance;
     @Mock GiftExpiryJob giftExpiry;
+    @Mock GiftVerificationJob giftVerification;
     @Mock ChatPartitionJob chatPartitions;
 
     private ScheduledJobs jobs;
@@ -45,7 +47,7 @@ class ScheduledJobsTest {
     @BeforeEach
     void setUp() {
         jobs = new ScheduledJobs(locks, sessionGenerator, sessionLifecycle, reminders, invites, attendance, giftExpiry,
-            chatPartitions);
+            giftVerification, chatPartitions);
     }
 
     private void lockIsFree() {
@@ -69,10 +71,12 @@ class ScheduledJobsTest {
         jobs.sendInvites();
         jobs.creditAttendance();
         jobs.expireGifts();
+        jobs.confirmGiftsWithPayaza();
         jobs.createChatPartitions();
 
         assertThat(locked).containsExactly("session-generator", "session-lifecycle", "reminder-dispatch", "invite-dispatch",
-            "attendance", "gift-expiry", "chat-partitions");
+            "attendance", "gift-expiry", "gift-verification", "chat-partitions");
+        verify(giftVerification).run();
         verify(sessionGenerator).run();
         verify(sessionLifecycle).run();
         verify(reminders).run();
@@ -96,10 +100,10 @@ class ScheduledJobsTest {
     void everyJobHasATimerHereAndNoneInTheJobItself() {
         List<Method> timers = Arrays.stream(ScheduledJobs.class.getDeclaredMethods())
             .filter(m -> m.isAnnotationPresent(Scheduled.class)).toList();
-        assertThat(timers).hasSize(7);
+        assertThat(timers).hasSize(8);
 
         for (Class<?> job : List.of(SessionGeneratorJob.class, SessionLifecycleJob.class, ReminderDispatchJob.class,
-                InviteDispatchJob.class, AttendanceJob.class, GiftExpiryJob.class, ChatPartitionJob.class)) {
+                InviteDispatchJob.class, AttendanceJob.class, GiftExpiryJob.class, GiftVerificationJob.class, ChatPartitionJob.class)) {
             assertThat(Arrays.stream(job.getDeclaredMethods()).filter(m -> m.isAnnotationPresent(Scheduled.class)))
                 .as("%s schedules itself (it would skip the lock)", job.getSimpleName()).isEmpty();
         }

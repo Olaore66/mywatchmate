@@ -4,8 +4,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
 
-@Schema(description = "A room's giving over a period (owner and admins). Self-reported by viewers' apps, not "
-    + "verified by Payaza; never says who gave what.")
+@Schema(description = "A room's giving over a period (owner and admins). Never says who gave what. In-room payments "
+    + "are confirmed by Payaza; the rest are as viewers' apps reported them (see `selfReported`).")
 public record GiveSummary(
     Instant from,
     Instant to,
@@ -15,7 +15,9 @@ public record GiveSummary(
     @Schema(description = "Failed or cancelled", example = "3") long notCompleted,
     @Schema(description = "No result reported (yet, or ever)", example = "3") long unreported,
     @Schema(description = "Completed gifts that reported an amount, per currency") List<CurrencyTotal> totals,
-    @Schema(description = "Always true") boolean selfReported
+    @Schema(description = "Some counted gifts are self-reported, not confirmed by Payaza: label totals \"reported\"")
+    boolean selfReported,
+    @Schema(description = "Completed gifts Payaza confirmed", example = "12") long confirmed
 ) {
     @Schema(name = "GiveCurrencyTotal")
     public record CurrencyTotal(

@@ -3,6 +3,7 @@ package com.mywatchmate.config;
 import com.mywatchmate.cluster.JobLock;
 import com.mywatchmate.connect.ChatPartitionJob;
 import com.mywatchmate.give.GiftExpiryJob;
+import com.mywatchmate.give.GiftVerificationJob;
 import com.mywatchmate.invite.InviteDispatchJob;
 import com.mywatchmate.notify.ReminderDispatchJob;
 import com.mywatchmate.sessions.SessionGeneratorJob;
@@ -35,6 +36,7 @@ public class ScheduledJobs {
     private final InviteDispatchJob invites;
     private final AttendanceJob attendance;
     private final GiftExpiryJob giftExpiry;
+    private final GiftVerificationJob giftVerification;
     private final ChatPartitionJob chatPartitions;
 
     @Scheduled(initialDelayString = "PT10S", fixedDelayString = "${mywatchmate.sessions.generate-interval:PT1H}")
@@ -65,6 +67,11 @@ public class ScheduledJobs {
     @Scheduled(initialDelayString = "PT1M", fixedDelayString = "${mywatchmate.give.expiry-interval:PT10M}")
     void expireGifts() {
         locks.runExclusively("gift-expiry", FIVE_MINUTES, FIVE_MINUTES, giftExpiry::run);
+    }
+
+    @Scheduled(initialDelayString = "PT45S", fixedDelayString = "${mywatchmate.payaza.verify-interval:PT1M}")
+    void confirmGiftsWithPayaza() {
+        locks.runExclusively("gift-verification", FIVE_MINUTES, FREQUENT, giftVerification::run);
     }
 
     @Scheduled(cron = "0 0 3 * * *", zone = "UTC")
