@@ -35,3 +35,9 @@ build/
 ### Local secrets ###
 .env
 application-local.yml
+
+### Python (cue-worker) ###
+cue-worker/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
