@@ -249,12 +249,19 @@ When `verifiedChurch` is set, show a **"✓ Verified: {verifiedChurch}"** badge:
      email_address: c.email ?? typed.email,
      first_name: c.firstName ?? typed.firstName,
      last_name: c.lastName ?? typed.lastName,
-     phone_number: typed.phone,             // international format, e.g. +2348012345678
+     phone_number: typed.phone,             // international format, no spaces (see the note below)
    });
    popup.setCallback((r) => report(r.type === "success" ? "COMPLETED" : "FAILED"));
    popup.setOnClose(() => report("CANCELLED"));
    popup.showPopup();
    ```
+
+   Payaza's callback gets `{ type, status, data }`: a successful payment is `type: "success"` (with
+   `data.transaction_reference` echoing ours and `data.payaza_reference`); Payaza documents `type: "error"` for
+   problems but not every failure case, so treat **anything other than `"success"` as FAILED**. `setOnClose` fires when
+   the giver closes the popup without finishing. Report only the first of these. Phone number: digits in international
+   format with no spaces or dashes (e.g. `2348012345678`; Payaza's docs disagree about the leading `+`, so check it in
+   Test mode).
 
    `report(status)` sends `POST /gifts/{giftId}/result` with `{ "status": status }` once. **We confirm the result
    with Payaza ourselves**, so the amount and status in the response are Payaza's, not the app's. If Payaza hasn't

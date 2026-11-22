@@ -46,6 +46,22 @@ class ApiContractTests {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void everyOperationDocumentsItsSuccessResponse() {
+        Map<String, Map<String, Map<String, Object>>> paths = docs.read("$.paths");
+        List<String> missing = new java.util.ArrayList<>();
+        paths.forEach((path, operations) -> operations.forEach((method, operation) -> {
+            Map<String, Object> responses = (Map<String, Object>) operation.get("responses");
+            if (responses == null || responses.keySet().stream().noneMatch(code -> code.startsWith("2"))) {
+                missing.add(method.toUpperCase() + " " + path);
+            }
+        }));
+        assertThat(missing).as("operations with no 2xx response in Swagger").isEmpty();
+        assertThat((String) docs.read("$.paths['/api/v1/admin/churches/{churchId}'].get.responses.200.content.*.schema.$ref",
+            List.class).get(0)).endsWith("/ChurchDetail");
+    }
+
+    @Test
     void responseFieldsThatAreAlwaysThereAreRequiredAndNullableOnesAreNot() {
         List<String> space = docs.read("$.components.schemas.SpaceResponse.required");
         assertThat(space).contains("id", "title", "audienceType", "owner", "playback", "chatMuted", "createdAt")

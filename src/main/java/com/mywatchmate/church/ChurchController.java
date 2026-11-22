@@ -45,7 +45,10 @@ public class ChurchController {
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Apply to register a church", description = """
         Status starts PENDING. MyWatchMate staff then contact the church through its official channels and make a small
-        test payment to confirm the Payaza key is the church's own. Nothing is paid in rooms until it's VERIFIED.""")
+        test payment to confirm the Payaza key is the church's own. Nothing is paid in rooms until it's VERIFIED.
+        Any signed-in user can apply for a church (usually someone from the church); staff don't add churches.
+        A payment link belongs to one church at a time: if another church (pending, verified or suspended) already has
+        it, you get 409 `LINK_CLAIMED`, with the link in the message. A rejected church frees its links.""")
     @ApiResponse(responseCode = "201", description = "Application received")
     @ApiResponse(responseCode = "400", description = "VALIDATION_FAILED",
         content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
