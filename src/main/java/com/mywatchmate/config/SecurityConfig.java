@@ -63,6 +63,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/invites/*").permitAll()
                 // Clock sync for playback; just the time, nothing private
                 .requestMatchers(HttpMethod.GET, "/api/v1/time").permitAll()
+                // Test videos for trying the AI giving detection (src/main/resources/static/samples)
+                .requestMatchers(HttpMethod.GET, "/samples/**").permitAll()
                 // Our own services (AI worker): checked against a service token in the controller, not a user token
                 .requestMatchers("/api/v1/internal/**").permitAll()
                 // LiveKit's webhook: checked against LiveKit's signature in the controller
